@@ -30,6 +30,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StreamUtils;
 import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,27 +48,38 @@ public class AdminTrackController {
 
     private static final String FILE_SERVER_BASE_URL = "http://jn_file.88933.vip:27472";
     private static final String UNKNOWN_ARTIST = "\u672a\u77e5";
+    private static final String UNKNOWN_ALBUM = "\u672a\u77e5";
 
     private final TrackService trackService;
     private final TrackMapper trackMapper;
     private final AdminTokenStore tokenStore;
     private final FileForwarder fileForwarder;
+    private final FileDeleter fileDeleter;
 
     @Autowired
     public AdminTrackController(TrackService trackService,
                                 TrackMapper trackMapper,
                                 AdminTokenStore tokenStore) {
-        this(trackService, trackMapper, tokenStore, null);
+        this(trackService, trackMapper, tokenStore, null, null);
     }
 
     AdminTrackController(TrackService trackService,
                          TrackMapper trackMapper,
                          AdminTokenStore tokenStore,
                          FileForwarder fileForwarder) {
+        this(trackService, trackMapper, tokenStore, fileForwarder, null);
+    }
+
+    AdminTrackController(TrackService trackService,
+                         TrackMapper trackMapper,
+                         AdminTokenStore tokenStore,
+                         FileForwarder fileForwarder,
+                         FileDeleter fileDeleter) {
         this.trackService = trackService;
         this.trackMapper = trackMapper;
         this.tokenStore = tokenStore;
         this.fileForwarder = fileForwarder != null ? fileForwarder : this::forwardFile;
+        this.fileDeleter = fileDeleter != null ? fileDeleter : this::deleteFile;
     }
 
     @PostMapping("/upload")
@@ -113,6 +125,25 @@ public class AdminTrackController {
             throw new BusinessException(ErrorCode.TRACK_NOT_FOUND);
         }
         return ResponseEntity.ok(ApiResponse.success(track));
+    }
+
+    @DeleteMapping("/{trackId}")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            HttpServletRequest request,
+            @RequestHeader(value = "X-Admin-Token", required = false) String token,
+            @RequestHeader(value = "X-Admin-User", required = false) String username,
+            @PathVariable("trackId") String trackId) {
+        checkAdminAuth(token, username);
+        Track track = trackMapper.selectById(trackId);
+        if (track == null) {
+            throw new BusinessException(ErrorCode.TRACK_NOT_FOUND);
+        }
+        int deleted = trackMapper.deleteById(trackId);
+        if (deleted < 1) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "删除失败");
+        }
+        deleteTrackFiles(track);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     private void checkAdminAuth(String token, String username) {
@@ -181,6 +212,45 @@ public class AdminTrackController {
         return StringUtils.hasText(artist) ? artist.trim() : UNKNOWN_ARTIST;
     }
 
+    private String normalizeAlbum(String album) {
+        return StringUtils.hasText(album) ? album.trim() : UNKNOWN_ALBUM;
+    }
+
+    private void deleteTrackFiles(Track track) {
+        deletePathIfPresent(audioPath(track));
+        deletePathIfPresent(relativePath(track.getCoverUrl()));
+        deletePathIfPresent(relativePath(track.getLyricUrl()));
+    }
+
+    private String audioPath(Track track) {
+        if (track == null || !StringUtils.hasText(track.getFormat())) {
+            return null;
+        }
+        return "/audio/" + track.getTrackId() + "." + track.getFormat().trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String relativePath(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.startsWith(FILE_SERVER_BASE_URL)) {
+            trimmed = trimmed.substring(FILE_SERVER_BASE_URL.length());
+        }
+        return trimmed.startsWith("/") ? trimmed : null;
+    }
+
+    private void deletePathIfPresent(String path) {
+        if (!StringUtils.hasText(path)) {
+            return;
+        }
+        try {
+            fileDeleter.delete(path);
+        } catch (Exception ignored) {
+            // 数据库记录已删除，单个旧资源清理失败不阻塞其余文件清理。
+        }
+    }
+
     private <T> ApiResponse<T> error(ErrorCode errorCode, String message) {
         return ApiResponse.<T>builder()
                 .success(false)
@@ -214,6 +284,17 @@ public class AdminTrackController {
         readFully(connection.getInputStream());
     }
 
+    private void deleteFile(String path) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(FILE_SERVER_BASE_URL + path).openConnection();
+        connection.setRequestMethod("DELETE");
+        int status = connection.getResponseCode();
+        if (status != HttpStatus.NOT_FOUND.value() && (status < 200 || status >= 300)) {
+            String message = readFully(connection.getErrorStream());
+            throw new IOException("dufs 返回状态码 " + status + ": " + message);
+        }
+        readFully(connection.getInputStream());
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<Track>> save(
             HttpServletRequest request,
@@ -226,7 +307,7 @@ public class AdminTrackController {
                 .trackId(resolvedTrackId)
                 .name(trackRequest.getName())
                 .artist(normalizeArtist(trackRequest.getArtist()))
-                .album(trackRequest.getAlbum())
+                .album(normalizeAlbum(trackRequest.getAlbum()))
                 .duration(trackRequest.getDuration())
                 .format(trackRequest.getFormat())
                 .fileSize(trackRequest.getFileSize())
@@ -273,5 +354,9 @@ public class AdminTrackController {
 
     interface FileForwarder {
         void forward(String path, MultipartFile file) throws IOException;
+    }
+
+    interface FileDeleter {
+        void delete(String path) throws IOException;
     }
 }

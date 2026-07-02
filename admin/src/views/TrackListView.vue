@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useAdminStore } from '../stores/admin'
 
@@ -177,6 +177,24 @@ function applyUploadResult(result: UploadResult) {
   }
 }
 
+async function deleteTrack(item: Track) {
+  if (!confirm(`确定删除「${item.name}」？此操作不可恢复。`)) return
+  const resp = await fetch(`/music/api/v1/admin/tracks/${item.trackId}`, {
+    method: 'DELETE',
+    headers: { 'X-Admin-Token': admin.token, 'X-Admin-User': admin.username }
+  })
+  const p = await resp.json()
+  if (!resp.ok || !p.success) { alert(p.error?.message || '删除失败'); return }
+  await fetchTracks()
+}
+
+function parseFilename(file: File) {
+  const n = file.name.replace(/\.[^.]+$/, '');
+  const s = n.indexOf(' - ');
+  if (s > 0) { form.artist = n.substring(0, s).trim(); form.name = n.substring(s + 3).trim(); }
+  else { form.name = n; }
+}
+
 function go(pageNumber: number) {
   if (pageNumber < 1 || pageNumber > totalPages.value) return
   page.value = pageNumber
@@ -235,6 +253,7 @@ onMounted(fetchTracks)
             <td>{{ item.duration }}s</td>
             <td>
               <button class="tiny" @click="openEdit(item)">编辑</button>
+              <button class="tiny danger" @click="deleteTrack(item)">删除</button>
             </td>
           </tr>
           <tr v-if="!trackList.length">
@@ -253,6 +272,46 @@ onMounted(fetchTracks)
       <section class="sheet">
         <h2>{{ form.mode === 'create' ? '新增歌曲' : '编辑歌曲' }}</h2>
         <form class="track-form" @submit.prevent="submitForm">
+          <div class="uploader">
+            <span class="uploader-title">快速上传 - 自动识别歌手 / 歌名</span>
+            <p class="uploader-hint">文件名格式为「歌手 - 歌名.mp3」会自动填入下方字段，专辑不填则默认为「未知」</p>
+            <div class="uploader-actions">
+              <label class="file-label">
+                <input type="file" @change="async (event) => {
+                  const target = event.target as HTMLInputElement
+                  const file = target.files?.[0]
+                  if (file) {
+                    parseFilename(file)
+                    applyUploadResult(await uploadFile(file, 'audio'))
+                    alert('音频已上传')
+                  }
+                }" />
+                <span>上传音频</span>
+              </label>
+              <label class="file-label">
+                <input type="file" accept="image/*" @change="async (event) => {
+                  const target = event.target as HTMLInputElement
+                  const file = target.files?.[0]
+                  if (file) {
+                    applyUploadResult(await uploadFile(file, 'cover'))
+                    alert('封面已上传')
+                  }
+                }" />
+                <span>上传封面</span>
+              </label>
+              <label class="file-label">
+                <input type="file" accept=".lrc,.txt" @change="async (event) => {
+                  const target = event.target as HTMLInputElement
+                  const file = target.files?.[0]
+                  if (file) {
+                    applyUploadResult(await uploadFile(file, 'lyric'))
+                    alert('歌词已上传')
+                  }
+                }" />
+                <span>上传歌词</span>
+              </label>
+            </div>
+          </div>
           <label v-if="form.mode === 'edit'">
             <span>歌曲ID</span>
             <input v-model="form.trackId" :disabled="form.mode === 'edit'" />
@@ -298,44 +357,6 @@ onMounted(fetchTracks)
             <input v-model="form.lyricUrl" />
           </label>
 
-          <div class="uploader">
-            <span class="uploader-title">快速上传</span>
-            <div class="uploader-actions">
-              <label class="file-label">
-                <input type="file" @change="async (event) => {
-                  const target = event.target as HTMLInputElement
-                  const file = target.files?.[0]
-                  if (file) {
-                    applyUploadResult(await uploadFile(file, 'audio'))
-                    alert('音频已上传')
-                  }
-                }" />
-                <span>上传音频</span>
-              </label>
-              <label class="file-label">
-                <input type="file" accept="image/*" @change="async (event) => {
-                  const target = event.target as HTMLInputElement
-                  const file = target.files?.[0]
-                  if (file) {
-                    applyUploadResult(await uploadFile(file, 'cover'))
-                    alert('封面已上传')
-                  }
-                }" />
-                <span>上传封面</span>
-              </label>
-              <label class="file-label">
-                <input type="file" accept=".lrc,.txt" @change="async (event) => {
-                  const target = event.target as HTMLInputElement
-                  const file = target.files?.[0]
-                  if (file) {
-                    applyUploadResult(await uploadFile(file, 'lyric'))
-                    alert('歌词已上传')
-                  }
-                }" />
-                <span>上传歌词</span>
-              </label>
-            </div>
-          </div>
 
           <footer class="sheet-actions">
             <button type="button" class="ghost" @click="form.visible = false">取消</button>
@@ -499,6 +520,12 @@ input[type='checkbox'] {
   margin: 0;
 }
 
+.uploader-hint {
+  color: #886699;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
 .uploader-title {
   color: #522d6b;
   font-weight: 700;
@@ -573,9 +600,17 @@ button:disabled {
   font-size: 14px;
 }
 
+.danger {
+  background: linear-gradient(135deg, #f093fb, #f5576c) !important;
+  color: white !important;
+}
+
 @media (max-width: 680px) {
   .track-form {
     grid-template-columns: 1fr;
   }
 }
 </style>
+
+
+

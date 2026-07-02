@@ -29,6 +29,7 @@ class AdminTrackControllerTest {
     private AdminTokenStore tokenStore;
     private AdminTrackController controller;
     private List<String> forwardedPaths;
+    private List<String> deletedPaths;
 
     @BeforeEach
     void setUp() {
@@ -36,11 +37,13 @@ class AdminTrackControllerTest {
         trackMapper = mock(TrackMapper.class);
         tokenStore = mock(AdminTokenStore.class);
         forwardedPaths = new ArrayList<>();
+        deletedPaths = new ArrayList<>();
         controller = new AdminTrackController(
                 trackService,
                 trackMapper,
                 tokenStore,
-                (path, file) -> forwardedPaths.add(path));
+                (path, file) -> forwardedPaths.add(path),
+                path -> deletedPaths.add(path));
         when(tokenStore.isValid("token", "admin")).thenReturn(true);
     }
 
@@ -51,6 +54,7 @@ class AdminTrackControllerTest {
         AdminTrackRequest request = new AdminTrackRequest();
         request.setName("Song A");
         request.setArtist(" ");
+        request.setAlbum(" ");
         request.setDuration(123);
         request.setFormat("mp3");
 
@@ -60,11 +64,13 @@ class AdminTrackControllerTest {
         Track saved = response.getBody().getData();
         assertThat(saved.getTrackId()).matches("T[0-9a-f]{8}");
         assertThat(saved.getArtist()).isEqualTo("未知");
+        assertThat(saved.getAlbum()).isEqualTo("未知");
 
         ArgumentCaptor<Track> captor = ArgumentCaptor.forClass(Track.class);
         verify(trackMapper).insert(captor.capture());
         assertThat(captor.getValue().getTrackId()).isEqualTo(saved.getTrackId());
         assertThat(captor.getValue().getArtist()).isEqualTo("未知");
+        assertThat(captor.getValue().getAlbum()).isEqualTo("未知");
     }
 
     @Test
@@ -99,5 +105,26 @@ class AdminTrackControllerTest {
         assertThat(upload.getUrl()).contains(upload.getTrackId());
         assertThat(forwardedPaths).hasSize(1);
         assertThat(forwardedPaths.get(0)).startsWith("/audio/").endsWith(".mp3");
+    }
+
+    @Test
+    void deleteRemovesTrackAndKnownFiles() {
+        Track track = Track.builder()
+                .trackId("T0000001")
+                .format("mp3")
+                .coverUrl("http://jn_file.88933.vip:27472/covers/T0000001.jpg")
+                .lyricUrl("/lyrics/T0000001.lrc")
+                .build();
+        when(trackMapper.selectById("T0000001")).thenReturn(track);
+        when(trackMapper.deleteById("T0000001")).thenReturn(1);
+
+        ResponseEntity<ApiResponse<Void>> response = controller.delete(null, "token", "admin", "T0000001");
+
+        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+        verify(trackMapper).deleteById("T0000001");
+        assertThat(deletedPaths).containsExactly(
+                "/audio/T0000001.mp3",
+                "/covers/T0000001.jpg",
+                "/lyrics/T0000001.lrc");
     }
 }
