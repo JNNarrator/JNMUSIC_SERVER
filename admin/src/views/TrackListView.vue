@@ -16,6 +16,15 @@ type Track = {
   lyricUrl?: string
 }
 
+type UploadResult = {
+  trackId: string
+  type: 'audio' | 'cover' | 'lyric'
+  fileName?: string
+  format?: string
+  fileSize?: number
+  url?: string
+}
+
 const admin = useAdminStore()
 const trackList = reactive<Track[]>([])
 const keyword = ref('')
@@ -109,9 +118,9 @@ async function submitForm() {
         'X-Admin-User': admin.username
       },
       body: JSON.stringify({
-        trackId: form.trackId,
+        trackId: form.trackId || null,
         name: form.name,
-        artist: form.artist,
+        artist: form.artist || null,
         album: form.album,
         duration: Number(form.duration || 0),
         format: form.format || null,
@@ -150,7 +159,22 @@ async function uploadFile(file: File, type: string) {
   if (!response.ok || !data.success) {
     throw new Error(data?.error?.message || '上传失败')
   }
-  return data.data
+  return data.data as UploadResult
+}
+
+function applyUploadResult(result: UploadResult) {
+  if (result.trackId) {
+    form.trackId = result.trackId
+  }
+  if (result.type === 'audio') {
+    form.format = result.format ?? form.format
+    form.fileSize = result.fileSize ?? form.fileSize
+  } else if (result.type === 'cover') {
+    form.coverUrl = result.url ?? form.coverUrl
+  } else if (result.type === 'lyric') {
+    form.lyricUrl = result.url ?? form.lyricUrl
+    form.hasLyric = true
+  }
 }
 
 function go(pageNumber: number) {
@@ -228,8 +252,8 @@ onMounted(fetchTracks)
     <div v-if="form.visible" class="overlay" @click.self="form.visible = false">
       <section class="sheet">
         <h2>{{ form.mode === 'create' ? '新增歌曲' : '编辑歌曲' }}</h2>
-        <form @submit.prevent="submitForm">
-          <label>
+        <form class="track-form" @submit.prevent="submitForm">
+          <label v-if="form.mode === 'edit'">
             <span>歌曲ID</span>
             <input v-model="form.trackId" :disabled="form.mode === 'edit'" />
           </label>
@@ -239,7 +263,7 @@ onMounted(fetchTracks)
           </label>
           <label>
             <span>歌手</span>
-            <input v-model="form.artist" required />
+            <input v-model="form.artist" />
           </label>
           <label>
             <span>专辑</span>
@@ -282,7 +306,7 @@ onMounted(fetchTracks)
                   const target = event.target as HTMLInputElement
                   const file = target.files?.[0]
                   if (file) {
-                    await uploadFile(file, 'audio')
+                    applyUploadResult(await uploadFile(file, 'audio'))
                     alert('音频已上传')
                   }
                 }" />
@@ -293,7 +317,7 @@ onMounted(fetchTracks)
                   const target = event.target as HTMLInputElement
                   const file = target.files?.[0]
                   if (file) {
-                    await uploadFile(file, 'cover')
+                    applyUploadResult(await uploadFile(file, 'cover'))
                     alert('封面已上传')
                   }
                 }" />
@@ -304,7 +328,7 @@ onMounted(fetchTracks)
                   const target = event.target as HTMLInputElement
                   const file = target.files?.[0]
                   if (file) {
-                    await uploadFile(file, 'lyric')
+                    applyUploadResult(await uploadFile(file, 'lyric'))
                     alert('歌词已上传')
                   }
                 }" />
@@ -417,25 +441,31 @@ td {
 }
 
 .sheet {
-  width: min(520px, 100%);
-  max-height: 92vh;
+  width: min(760px, 100%);
+  max-height: 88vh;
   overflow-y: auto;
-  border-radius: 28px;
-  padding: 22px 22px 24px;
+  border-radius: 22px;
+  padding: 12px 14px 14px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 30px 80px rgba(100, 60, 120, 0.35);
 }
 
 .sheet h2 {
-  margin: 0 0 18px;
+  margin: 0 0 8px;
   color: #522d6b;
+}
+
+.track-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
 }
 
 label {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 4px;
+  margin-bottom: 0;
   color: #663a7a;
   font-weight: 600;
 }
@@ -444,6 +474,7 @@ label {
   flex-direction: row;
   align-items: center;
   gap: 12px;
+  min-height: 32px;
 }
 
 input[type='checkbox'] {
@@ -453,18 +484,19 @@ input[type='checkbox'] {
 
 .sheet input {
   border: none;
-  border-radius: 18px;
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 7px 10px;
   background: rgba(255, 255, 255, 0.85);
   box-shadow: inset 0 2px 6px rgba(90, 50, 110, 0.08);
   color: #3a2a45;
 }
 
 .uploader {
-  border-radius: 22px;
-  padding: 18px;
+  grid-column: 1 / -1;
+  border-radius: 16px;
+  padding: 8px 10px;
   background: rgba(255, 255, 255, 0.7);
-  margin: 18px 0;
+  margin: 0;
 }
 
 .uploader-title {
@@ -474,18 +506,19 @@ input[type='checkbox'] {
 
 .uploader-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 6px;
   flex-wrap: wrap;
 }
 
 .file-label {
   cursor: pointer;
-  border-radius: 20px;
-  padding: 12px 18px;
+  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: 13px;
   background: linear-gradient(135deg, #ff9a9e, #a18cd1);
   color: white;
-  box-shadow: 0 12px 25px rgba(160, 120, 200, 0.35);
+  box-shadow: 0 8px 18px rgba(160, 120, 200, 0.25);
 }
 
 .file-label input {
@@ -493,10 +526,11 @@ input[type='checkbox'] {
 }
 
 .sheet-actions {
+  grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 2px;
 }
 
 .primary {
@@ -537,5 +571,11 @@ button:disabled {
 .tiny {
   padding: 10px 14px;
   font-size: 14px;
+}
+
+@media (max-width: 680px) {
+  .track-form {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
