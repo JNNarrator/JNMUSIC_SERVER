@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useAdminStore } from './stores/admin'
+import LoginView from './views/LoginView.vue'
+import TrackListView from './views/TrackListView.vue'
 
 const admin = useAdminStore()
+// 核心：根据本地令牌决定首屏，避免已登录用户重复进入登录页。
 const currentView = computed(() => admin.token ? 'track' : 'login')
 </script>
 

@@ -126,22 +126,17 @@ public class AdminTrackController {
     }
 
     private void forwardFile(String path, MultipartFile file) throws IOException {
-        String boundary = "----FormBoundary" + System.currentTimeMillis();
         String fileName = file.getOriginalFilename();
         if (!StringUtils.hasText(fileName)) {
             fileName = "upload.bin";
         }
         HttpURLConnection connection = (HttpURLConnection) new URL("http://jn_file.88933.vip:27472" + path).openConnection();
-        connection.setRequestMethod("POST");
+        connection.setRequestMethod("PUT");
         connection.setDoOutput(true);
-        connection.setRequestProperty(HttpHeaders.CONTENT_TYPE, MediaType.MULTIPART_FORM_DATA + "; boundary=" + boundary);
+        connection.setRequestProperty(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE);
         try (InputStream inputStream = file.getInputStream();
              java.io.OutputStream outputStream = connection.getOutputStream()) {
-            outputStream.write(("--" + boundary + "\r\n").getBytes());
-            outputStream.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n").getBytes());
-            outputStream.write(("Content-Type: application/octet-stream\r\n\r\n").getBytes());
             StreamUtils.copy(inputStream, outputStream);
-            outputStream.write(("\r\n--" + boundary + "--\r\n").getBytes());
             outputStream.flush();
         }
         int status = connection.getResponseCode();
