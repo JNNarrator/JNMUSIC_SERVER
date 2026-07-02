@@ -25,6 +25,16 @@ type UploadResult = {
   url?: string
 }
 
+type UploadType = UploadResult['type']
+
+type UploadStatus = {
+  uploading: boolean
+  progress: number
+  fileName: string
+  message: string
+  error: string
+}
+
 const admin = useAdminStore()
 const trackList = reactive<Track[]>([])
 const keyword = ref('')
@@ -48,6 +58,17 @@ const form = reactive({
   coverUrl: '',
   lyricUrl: ''
 })
+const uploadState = reactive<Record<UploadType, UploadStatus>>({
+  audio: { uploading: false, progress: 0, fileName: '', message: '', error: '' },
+  cover: { uploading: false, progress: 0, fileName: '', message: '', error: '' },
+  lyric: { uploading: false, progress: 0, fileName: '', message: '', error: '' }
+})
+const isUploading = computed(() => Object.values(uploadState).some((item) => item.uploading))
+const uploadItems = computed(() => [
+  { type: 'audio' as const, label: '音频', ...uploadState.audio },
+  { type: 'cover' as const, label: '封面', ...uploadState.cover },
+  { type: 'lyric' as const, label: '歌词', ...uploadState.lyric }
+])
 
 async function fetchTracks() {
   loading.value = true
@@ -70,6 +91,7 @@ async function fetchTracks() {
 }
 
 function openCreate() {
+  resetUploadState()
   Object.assign(form, {
     visible: true,
     saving: false,
@@ -89,6 +111,7 @@ function openCreate() {
 }
 
 function openEdit(item: Track) {
+  resetUploadState()
   Object.assign(form, {
     visible: true,
     saving: false,
@@ -108,6 +131,10 @@ function openEdit(item: Track) {
 }
 
 async function submitForm() {
+  if (isUploading.value) {
+    alert('文件还在上传中，请上传完成后再保存')
+    return
+  }
   form.saving = true
   try {
     const response = await fetch('/music/api/v1/admin/tracks', {
@@ -143,23 +170,92 @@ async function submitForm() {
   }
 }
 
-async function uploadFile(file: File, type: string) {
+function uploadFile(file: File, type: UploadType, onProgress: (progress: number) => void) {
   const payload = new FormData()
   payload.append('file', file)
   payload.append('type', type)
   if (form.trackId) {
     payload.append('trackId', form.trackId)
   }
-  const response = await fetch('/music/api/v1/admin/tracks/upload', {
-    method: 'POST',
-    headers: { 'X-Admin-Token': admin.token, 'X-Admin-User': admin.username },
-    body: payload
+  return new Promise<UploadResult>((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', '/music/api/v1/admin/tracks/upload')
+    request.setRequestHeader('X-Admin-Token', admin.token)
+    request.setRequestHeader('X-Admin-User', admin.username)
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress(Math.min(99, Math.round((event.loaded / event.total) * 100)))
+      }
+    }
+    request.onload = () => {
+      const data = parseJsonResponse(request.responseText)
+      if (request.status < 200 || request.status >= 300 || !data.success) {
+        reject(new Error(data?.error?.message || '上传失败'))
+        return
+      }
+      onProgress(100)
+      resolve(data.data as UploadResult)
+    }
+    request.onerror = () => reject(new Error('网络异常，上传失败'))
+    request.onabort = () => reject(new Error('上传已取消'))
+    request.send(payload)
   })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok || !data.success) {
-    throw new Error(data?.error?.message || '上传失败')
+}
+
+function parseJsonResponse(value: string) {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return {}
   }
-  return data.data as UploadResult
+}
+
+function resetUploadState() {
+  Object.values(uploadState).forEach((item) => {
+    item.uploading = false
+    item.progress = 0
+    item.fileName = ''
+    item.message = ''
+    item.error = ''
+  })
+}
+
+async function handleUpload(event: Event, type: UploadType) {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  const state = uploadState[type]
+  state.uploading = true
+  state.progress = 1
+  state.fileName = file.name
+  state.message = '上传中...'
+  state.error = ''
+
+  if (type === 'audio') {
+    parseFilename(file)
+  }
+
+  try {
+    const result = await uploadFile(file, type, (progress) => {
+      state.progress = progress
+    })
+    applyUploadResult(result)
+    state.progress = 100
+    state.message = `${uploadLabel(type)}已上传`
+  } catch (error) {
+    state.error = error instanceof Error ? error.message : '上传失败'
+    state.message = ''
+  } finally {
+    state.uploading = false
+    target.value = ''
+  }
+}
+
+function uploadLabel(type: UploadType) {
+  if (type === 'audio') return '音频'
+  if (type === 'cover') return '封面'
+  return '歌词'
 }
 
 function applyUploadResult(result: UploadResult) {
@@ -268,7 +364,7 @@ onMounted(fetchTracks)
       </footer>
     </section>
 
-    <div v-if="form.visible" class="overlay" @click.self="form.visible = false">
+    <div v-if="form.visible" class="overlay" @click.self="!isUploading && (form.visible = false)">
       <section class="sheet">
         <h2>{{ form.mode === 'create' ? '新增歌曲' : '编辑歌曲' }}</h2>
         <form class="track-form" @submit.prevent="submitForm">
@@ -277,39 +373,35 @@ onMounted(fetchTracks)
             <p class="uploader-hint">文件名格式为「歌手 - 歌名.mp3」会自动填入下方字段，专辑不填则默认为「未知」</p>
             <div class="uploader-actions">
               <label class="file-label">
-                <input type="file" @change="async (event) => {
-                  const target = event.target as HTMLInputElement
-                  const file = target.files?.[0]
-                  if (file) {
-                    parseFilename(file)
-                    applyUploadResult(await uploadFile(file, 'audio'))
-                    alert('音频已上传')
-                  }
-                }" />
+                <input type="file" :disabled="isUploading" @change="handleUpload($event, 'audio')" />
                 <span>上传音频</span>
               </label>
               <label class="file-label">
-                <input type="file" accept="image/*" @change="async (event) => {
-                  const target = event.target as HTMLInputElement
-                  const file = target.files?.[0]
-                  if (file) {
-                    applyUploadResult(await uploadFile(file, 'cover'))
-                    alert('封面已上传')
-                  }
-                }" />
+                <input type="file" accept="image/*" :disabled="isUploading" @change="handleUpload($event, 'cover')" />
                 <span>上传封面</span>
               </label>
               <label class="file-label">
-                <input type="file" accept=".lrc,.txt" @change="async (event) => {
-                  const target = event.target as HTMLInputElement
-                  const file = target.files?.[0]
-                  if (file) {
-                    applyUploadResult(await uploadFile(file, 'lyric'))
-                    alert('歌词已上传')
-                  }
-                }" />
+                <input type="file" accept=".lrc,.txt" :disabled="isUploading" @change="handleUpload($event, 'lyric')" />
                 <span>上传歌词</span>
               </label>
+            </div>
+            <div class="upload-progress-list" aria-live="polite">
+              <div
+                v-for="item in uploadItems"
+                :key="item.type"
+                v-show="item.fileName || item.uploading || item.message || item.error"
+                class="upload-progress-item"
+                :class="{ failed: item.error }"
+              >
+                <div class="upload-progress-meta">
+                  <span>{{ item.label }} · {{ item.fileName || '等待选择文件' }}</span>
+                  <strong>{{ item.progress }}%</strong>
+                </div>
+                <div class="progress-track">
+                  <span class="progress-fill" :style="{ width: `${item.progress}%` }"></span>
+                </div>
+                <p>{{ item.error || item.message }}</p>
+              </div>
             </div>
           </div>
           <label v-if="form.mode === 'edit'">
@@ -359,8 +451,10 @@ onMounted(fetchTracks)
 
 
           <footer class="sheet-actions">
-            <button type="button" class="ghost" @click="form.visible = false">取消</button>
-            <button type="submit" :disabled="form.saving">{{ form.saving ? '保存中...' : '保存' }}</button>
+            <button type="button" class="ghost" :disabled="isUploading" @click="form.visible = false">取消</button>
+            <button type="submit" :disabled="form.saving || isUploading">
+              {{ isUploading ? '上传完成后可保存' : form.saving ? '保存中...' : '保存' }}
+            </button>
           </footer>
         </form>
       </section>
@@ -552,6 +646,75 @@ input[type='checkbox'] {
   display: none;
 }
 
+.file-label:has(input:disabled) {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.upload-progress-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.upload-progress-item {
+  border-radius: 14px;
+  padding: 7px 9px;
+  background: rgba(255, 246, 252, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.upload-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #663a7a;
+  font-size: 12px;
+}
+
+.upload-progress-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-progress-meta strong {
+  flex: 0 0 auto;
+  color: #ff7a94;
+}
+
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  margin-top: 5px;
+  background: rgba(160, 140, 209, 0.18);
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8ee6c9, #ffd36e, #ff9a9e);
+  transition: width .2s ease;
+}
+
+.upload-progress-item p {
+  margin: 4px 0 0;
+  color: #886699;
+  font-size: 12px;
+}
+
+.upload-progress-item.failed .progress-fill {
+  background: linear-gradient(90deg, #ff9a9e, #f5576c);
+}
+
+.upload-progress-item.failed p {
+  color: #c84668;
+}
+
 .sheet-actions {
   grid-column: 1 / -1;
   display: flex;
@@ -581,6 +744,7 @@ button:hover:not(:disabled) {
 
 button:disabled {
   opacity: 0.8;
+  cursor: not-allowed;
 }
 
 .ghost {
