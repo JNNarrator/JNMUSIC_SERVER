@@ -26,9 +26,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
     public ResponseEntity<ApiResponse<Void>> handleValidationException(HttpServletRequest request, Exception ex) {
         String message = "参数校验失败";
-        if (ex instanceof MethodArgumentNotValidException methodArgumentNotValidException) {
+        if (ex instanceof MethodArgumentNotValidException) {
+            MethodArgumentNotValidException methodArgumentNotValidException = (MethodArgumentNotValidException) ex;
             message = formatFieldErrors(methodArgumentNotValidException.getBindingResult().getFieldErrors());
-        } else if (ex instanceof BindException bindException) {
+        } else if (ex instanceof BindException) {
+            BindException bindException = (BindException) ex;
             message = formatFieldErrors(bindException.getFieldErrors());
         }
         log.warn("参数校验失败 traceId={} path={} message={}", TraceIdContext.getTraceId(), request.getRequestURI(), message);
@@ -37,7 +39,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({IllegalArgumentException.class, BusinessException.class})
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(HttpServletRequest request, Exception ex) {
-        if (ex instanceof BusinessException businessException) {
+        if (ex instanceof BusinessException) {
+            BusinessException businessException = (BusinessException) ex;
             log.warn("业务异常 traceId={} path={} message={}", TraceIdContext.getTraceId(), request.getRequestURI(), ex.getMessage());
             return buildResponse(businessException.getErrorCode(), ex.getMessage());
         }

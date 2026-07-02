@@ -7,18 +7,23 @@ import com.jn.music.common.TraceIdContext;
 import com.jn.music.common.exception.BusinessException;
 import com.jn.music.common.enums.ErrorCode;
 import com.jn.music.admin.dto.AdminTrackRequest;
+import com.jn.music.admin.dto.AdminUploadResponse;
 import com.jn.music.track.domain.Track;
 import com.jn.music.track.mapper.TrackMapper;
 import com.jn.music.track.service.TrackService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.UUID;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,26 +40,38 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/v1/admin/tracks")
 public class AdminTrackController {
 
+    private static final String FILE_SERVER_BASE_URL = "http://jn_file.88933.vip:27472";
+    private static final String UNKNOWN_ARTIST = "\u672a\u77e5";
+
     private final TrackService trackService;
     private final TrackMapper trackMapper;
     private final AdminTokenStore tokenStore;
+    private final FileForwarder fileForwarder;
 
+    @Autowired
     public AdminTrackController(TrackService trackService,
                                 TrackMapper trackMapper,
                                 AdminTokenStore tokenStore) {
+        this(trackService, trackMapper, tokenStore, null);
+    }
+
+    AdminTrackController(TrackService trackService,
+                         TrackMapper trackMapper,
+                         AdminTokenStore tokenStore,
+                         FileForwarder fileForwarder) {
         this.trackService = trackService;
         this.trackMapper = trackMapper;
         this.tokenStore = tokenStore;
+        this.fileForwarder = fileForwarder != null ? fileForwarder : this::forwardFile;
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<ApiResponse<Track>> upload(
+    public ResponseEntity<ApiResponse<AdminUploadResponse>> upload(
             HttpServletRequest request,
             @RequestHeader(value = "X-Admin-Token", required = false) String token,
             @RequestHeader(value = "X-Admin-User", required = false) String username,
@@ -62,22 +79,22 @@ public class AdminTrackController {
             @RequestParam("type") @NotBlank(message = "上传类型不能为空") String type,
             @RequestParam(value = "trackId", required = false) String trackId) {
         checkAdminAuth(token, username);
-        if (StringUtils.hasText(trackId) && trackService.getTrackById(trackId.trim()) != null) {
-            return ResponseEntity.badRequest().body(error(ErrorCode.INVALID_PARAMETER, "歌曲ID已存在"));
-        }
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(error(ErrorCode.INVALID_PARAMETER, "文件不能为空"));
         }
-        String resolvedTrackId = StringUtils.hasText(trackId) ? trackId.trim() : ("T" + UUID.randomUUID().toString().replace("-", "").substring(0, 8));
-        if (StringUtils.hasText(trackId) && trackService.getTrackById(resolvedTrackId) != null) {
-            return ResponseEntity.badRequest().body(error(ErrorCode.INVALID_PARAMETER, "歌曲ID已存在"));
-        }
-        String path = resolvePath(type, resolvedTrackId);
+        String resolvedTrackId = StringUtils.hasText(trackId) ? trackId.trim() : generateTrackId();
+        String originalFilename = file.getOriginalFilename();
+        String format = resolveFormat(type, originalFilename, file.getContentType());
+        String path = resolvePath(type, resolvedTrackId, format);
         try {
-            forwardFile(path, file);
-            return ResponseEntity.ok(ApiResponse.success(Track.builder()
+            fileForwarder.forward(path, file);
+            return ResponseEntity.ok(ApiResponse.success(AdminUploadResponse.builder()
                     .trackId(resolvedTrackId)
-                    .name(file.getOriginalFilename())
+                    .type(type)
+                    .fileName(originalFilename)
+                    .format(format)
+                    .fileSize(file.getSize())
+                    .url(FILE_SERVER_BASE_URL + path)
                     .build()));
         } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error(ErrorCode.MEDIA_UNAVAILABLE, "上传失败: " + ex.getMessage()));
@@ -104,9 +121,9 @@ public class AdminTrackController {
         }
     }
 
-    private String resolvePath(String type, String trackId) {
+    private String resolvePath(String type, String trackId, String format) {
         if ("audio".equalsIgnoreCase(type)) {
-            return "/audio/" + trackId;
+            return "/audio/" + trackId + "." + format;
         }
         if ("cover".equalsIgnoreCase(type)) {
             return "/covers/" + trackId + ".jpg";
@@ -115,6 +132,53 @@ public class AdminTrackController {
             return "/lyrics/" + trackId + ".lrc";
         }
         throw new BusinessException(ErrorCode.INVALID_PARAMETER, "不支持的上传类型: " + type);
+    }
+
+    private String resolveFormat(String type, String filename, String contentType) {
+        String extension = StringUtils.getFilenameExtension(filename);
+        if (StringUtils.hasText(extension)) {
+            return extension.trim().toLowerCase(Locale.ROOT);
+        }
+        if ("audio".equalsIgnoreCase(type) && StringUtils.hasText(contentType)) {
+            String normalizedContentType = contentType.toLowerCase(Locale.ROOT);
+            if ("audio/mpeg".equals(normalizedContentType) || "audio/mp3".equals(normalizedContentType)) {
+                return "mp3";
+            }
+            if ("audio/flac".equals(normalizedContentType) || "audio/x-flac".equals(normalizedContentType)) {
+                return "flac";
+            }
+            if ("audio/wav".equals(normalizedContentType)
+                    || "audio/wave".equals(normalizedContentType)
+                    || "audio/x-wav".equals(normalizedContentType)) {
+                return "wav";
+            }
+            if ("audio/aac".equals(normalizedContentType) || "audio/x-aac".equals(normalizedContentType)) {
+                return "aac";
+            }
+            if ("audio/ogg".equals(normalizedContentType)) {
+                return "ogg";
+            }
+            return "bin";
+        }
+        if ("cover".equalsIgnoreCase(type)) {
+            return "jpg";
+        }
+        if ("lyric".equalsIgnoreCase(type)) {
+            return "lrc";
+        }
+        return "bin";
+    }
+
+    private String generateTrackId() {
+        String trackId;
+        do {
+            trackId = "T" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        } while (trackService.getTrackById(trackId) != null);
+        return trackId;
+    }
+
+    private String normalizeArtist(String artist) {
+        return StringUtils.hasText(artist) ? artist.trim() : UNKNOWN_ARTIST;
     }
 
     private <T> ApiResponse<T> error(ErrorCode errorCode, String message) {
@@ -130,10 +194,13 @@ public class AdminTrackController {
         if (!StringUtils.hasText(fileName)) {
             fileName = "upload.bin";
         }
-        HttpURLConnection connection = (HttpURLConnection) new URL("http://jn_file.88933.vip:27472" + path).openConnection();
+        HttpURLConnection connection = (HttpURLConnection) new URL(FILE_SERVER_BASE_URL + path).openConnection();
         connection.setRequestMethod("PUT");
         connection.setDoOutput(true);
-        connection.setRequestProperty(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        String contentType = StringUtils.hasText(file.getContentType())
+                ? file.getContentType()
+                : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        connection.setRequestProperty(HttpHeaders.CONTENT_TYPE, contentType);
         try (InputStream inputStream = file.getInputStream();
              java.io.OutputStream outputStream = connection.getOutputStream()) {
             StreamUtils.copy(inputStream, outputStream);
@@ -154,10 +221,11 @@ public class AdminTrackController {
             @RequestHeader(value = "X-Admin-User", required = false) String username,
             @Valid @RequestBody AdminTrackRequest trackRequest) {
         checkAdminAuth(token, username);
+        String resolvedTrackId = StringUtils.hasText(trackRequest.getTrackId()) ? trackRequest.getTrackId().trim() : generateTrackId();
         Track track = Track.builder()
-                .trackId(trackRequest.getTrackId())
+                .trackId(resolvedTrackId)
                 .name(trackRequest.getName())
-                .artist(trackRequest.getArtist())
+                .artist(normalizeArtist(trackRequest.getArtist()))
                 .album(trackRequest.getAlbum())
                 .duration(trackRequest.getDuration())
                 .format(trackRequest.getFormat())
@@ -200,6 +268,10 @@ public class AdminTrackController {
         if (stream == null) {
             return "";
         }
-        return StreamUtils.copyToString(stream, java.nio.charset.Charset.forName("UTF-8"));
+        return StreamUtils.copyToString(stream, StandardCharsets.UTF_8);
+    }
+
+    interface FileForwarder {
+        void forward(String path, MultipartFile file) throws IOException;
     }
 }
