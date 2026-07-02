@@ -17,6 +17,11 @@ public interface TrackService {
     PageResponse<TrackSummaryDTO> searchTracks(String keyword, Integer page, Integer pageSize);
 
     /**
+     * 歌曲分页列表，page 从 1 开始。
+     */
+    PageResponse<TrackSummaryDTO> listTracks(Integer page, Integer pageSize);
+
+    /**
      * 根据 trackId 获取完整歌曲元数据。
      */
     TrackDTO getTrackById(String trackId);

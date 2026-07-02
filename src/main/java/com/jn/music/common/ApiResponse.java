@@ -21,4 +21,8 @@ public class ApiResponse<T> {
     private ApiError error;
 
     private String traceId;
+
+    public static <T> ApiResponse<T> success(T data) {
+        return ApiResponse.<T>builder().success(Boolean.TRUE).data(data).build();
+    }
 }
