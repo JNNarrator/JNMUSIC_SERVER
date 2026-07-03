@@ -14,7 +14,7 @@
 ```
 本地开发（Spring Boot）: http://127.0.0.1:19001/music/api/v1
 生产环境: https://<你的部署域名>/music/api/v1
-文件服务（dufs 直连）: http://jn_file.88933.vip:27472
+文件服务（dufs 直连）: http://jn_file.88933.vip
 ```
 
 说明：
