@@ -8,11 +8,11 @@ import com.jn.music.track.dto.TrackDTO;
  */
 public interface FavoriteService {
 
-    PageResponse<TrackDTO> listFavorites(Integer page, Integer pageSize);
+    PageResponse<TrackDTO> listFavorites(String deviceId, Integer page, Integer pageSize);
 
-    void addFavorite(String trackId);
+    void addFavorite(String deviceId, String trackId);
 
-    void removeFavorite(String trackId);
+    void removeFavorite(String deviceId, String trackId);
 
-    Boolean existsFavorite(String trackId);
+    Boolean existsFavorite(String deviceId, String trackId);
 }

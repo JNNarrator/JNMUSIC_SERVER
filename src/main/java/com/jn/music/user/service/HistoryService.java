@@ -8,9 +8,9 @@ import com.jn.music.user.dto.HistoryTrackDTO;
  */
 public interface HistoryService {
 
-    PageResponse<HistoryTrackDTO> listHistory(Integer page, Integer pageSize);
+    PageResponse<HistoryTrackDTO> listHistory(String deviceId, Integer page, Integer pageSize);
 
-    void recordPlay(String trackId);
+    void recordPlay(String deviceId, String trackId);
 
-    void clearHistory();
+    void clearHistory(String deviceId);
 }

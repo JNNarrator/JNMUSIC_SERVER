@@ -13,9 +13,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
@@ -34,6 +36,18 @@ public class GlobalExceptionHandler {
             message = formatFieldErrors(bindException.getFieldErrors());
         }
         log.warn("参数校验失败 traceId={} path={} message={}", TraceIdContext.getTraceId(), request.getRequestURI(), message);
+        return buildResponse(ErrorCode.INVALID_PARAMETER, message);
+    }
+
+    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<ApiResponse<Void>> handleRequestParameterException(HttpServletRequest request, Exception ex) {
+        String message = "请求参数不合法";
+        if (ex instanceof MissingServletRequestParameterException parameterException) {
+            message = "缺少必填参数: " + parameterException.getParameterName();
+        } else if (ex instanceof MethodArgumentTypeMismatchException typeMismatchException) {
+            message = "参数类型不合法: " + typeMismatchException.getName();
+        }
+        log.warn("请求参数异常 traceId={} path={} message={}", TraceIdContext.getTraceId(), request.getRequestURI(), message);
         return buildResponse(ErrorCode.INVALID_PARAMETER, message);
     }
 

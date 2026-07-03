@@ -9,11 +9,11 @@ import java.util.List;
  */
 public interface QueueService {
 
-    List<QueueItemDTO> listQueue();
+    List<QueueItemDTO> listQueue(String deviceId);
 
-    void saveQueue(List<QueueItemRequest> items);
+    void saveQueue(String deviceId, List<QueueItemRequest> items);
 
-    void appendTrack(String trackId);
+    void appendTrack(String deviceId, String trackId);
 
-    void removeTrack(String trackId);
+    void removeTrack(String deviceId, String trackId);
 }

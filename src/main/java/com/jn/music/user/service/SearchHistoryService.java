@@ -8,9 +8,9 @@ import java.util.List;
  */
 public interface SearchHistoryService {
 
-    List<SearchKeywordDTO> listSearchHistory(Integer limit);
+    List<SearchKeywordDTO> listSearchHistory(String deviceId, Integer limit);
 
-    void recordKeyword(String keyword);
+    void recordKeyword(String deviceId, String keyword);
 
-    void clearSearchHistory();
+    void clearSearchHistory(String deviceId);
 }

@@ -4,6 +4,7 @@ import com.jn.music.admin.service.AdminTokenStore;
 import com.jn.music.common.ApiError;
 import com.jn.music.common.ApiResponse;
 import com.jn.music.common.TraceIdContext;
+import com.jn.music.common.config.FileServerProperties;
 import com.jn.music.common.exception.BusinessException;
 import com.jn.music.common.enums.ErrorCode;
 import com.jn.music.admin.dto.AdminTrackRequest;
@@ -46,7 +47,6 @@ import org.springframework.web.server.ResponseStatusException;
 @RequestMapping("/api/v1/admin/tracks")
 public class AdminTrackController {
 
-    private static final String FILE_SERVER_BASE_URL = "http://jn_file.88933.vip:27472";
     private static final String UNKNOWN_ARTIST = "\u672a\u77e5";
     private static final String UNKNOWN_ALBUM = "\u672a\u77e5";
     private static final String UNKNOWN_FORMAT = "\u672a\u77e5";
@@ -54,31 +54,35 @@ public class AdminTrackController {
     private final TrackService trackService;
     private final TrackMapper trackMapper;
     private final AdminTokenStore tokenStore;
+    private final FileServerProperties fileServerProperties;
     private final FileForwarder fileForwarder;
     private final FileDeleter fileDeleter;
 
     @Autowired
     public AdminTrackController(TrackService trackService,
                                 TrackMapper trackMapper,
-                                AdminTokenStore tokenStore) {
-        this(trackService, trackMapper, tokenStore, null, null);
+                                AdminTokenStore tokenStore,
+                                FileServerProperties fileServerProperties) {
+        this(trackService, trackMapper, tokenStore, fileServerProperties, null, null);
     }
 
     AdminTrackController(TrackService trackService,
                          TrackMapper trackMapper,
                          AdminTokenStore tokenStore,
                          FileForwarder fileForwarder) {
-        this(trackService, trackMapper, tokenStore, fileForwarder, null);
+        this(trackService, trackMapper, tokenStore, new FileServerProperties(), fileForwarder, null);
     }
 
     AdminTrackController(TrackService trackService,
                          TrackMapper trackMapper,
                          AdminTokenStore tokenStore,
+                         FileServerProperties fileServerProperties,
                          FileForwarder fileForwarder,
                          FileDeleter fileDeleter) {
         this.trackService = trackService;
         this.trackMapper = trackMapper;
         this.tokenStore = tokenStore;
+        this.fileServerProperties = fileServerProperties;
         this.fileForwarder = fileForwarder != null ? fileForwarder : this::forwardFile;
         this.fileDeleter = fileDeleter != null ? fileDeleter : this::deleteFile;
     }
@@ -107,7 +111,7 @@ public class AdminTrackController {
                     .fileName(originalFilename)
                     .format(format)
                     .fileSize(file.getSize())
-                    .url(FILE_SERVER_BASE_URL + path)
+                    .url(fileServerProperties.publicUrl(path))
                     .build()));
         } catch (Exception ex) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error(ErrorCode.MEDIA_UNAVAILABLE, "上传失败: " + ex.getMessage()));
@@ -239,8 +243,9 @@ public class AdminTrackController {
             return null;
         }
         String trimmed = value.trim();
-        if (trimmed.startsWith(FILE_SERVER_BASE_URL)) {
-            trimmed = trimmed.substring(FILE_SERVER_BASE_URL.length());
+        String publicBaseUrl = fileServerProperties.getPublicBaseUrl();
+        if (trimmed.startsWith(publicBaseUrl)) {
+            trimmed = trimmed.substring(publicBaseUrl.length());
         }
         return trimmed.startsWith("/") ? trimmed : null;
     }
@@ -269,7 +274,7 @@ public class AdminTrackController {
         if (!StringUtils.hasText(fileName)) {
             fileName = "upload.bin";
         }
-        HttpURLConnection connection = (HttpURLConnection) new URL(FILE_SERVER_BASE_URL + path).openConnection();
+        HttpURLConnection connection = (HttpURLConnection) new URL(fileServerProperties.internalUrl(path)).openConnection();
         connection.setRequestMethod("PUT");
         connection.setDoOutput(true);
         String contentType = StringUtils.hasText(file.getContentType())
@@ -290,7 +295,7 @@ public class AdminTrackController {
     }
 
     private void deleteFile(String path) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(FILE_SERVER_BASE_URL + path).openConnection();
+        HttpURLConnection connection = (HttpURLConnection) new URL(fileServerProperties.internalUrl(path)).openConnection();
         connection.setRequestMethod("DELETE");
         int status = connection.getResponseCode();
         if (status != HttpStatus.NOT_FOUND.value() && (status < 200 || status >= 300)) {

@@ -324,14 +324,6 @@ GET /tracks/{trackId}/media-url
 
 ## 8. 推荐技术栈
 
-| 层级 | 推荐 | 可选 |
-| --- | --- | --- |
-| 后端语言 | Go (Gin) | Node.js (Express), Python (FastAPI) |
-| 数据库 | PostgreSQL + pg_trgm 搜索 | MySQL |
-| 文件存储 | 本地磁盘 + Nginx 直出 | S3 兼容对象存储 |
-| 搜索 | PostgreSQL 全文检索 | Elasticsearch（曲库 > 5 万首时考虑） |
-| API 文档 | Swagger / OpenAPI 3.0 | - |
-
 ## 9. 第一阶段最小实现任务清单
 
 - [ ] 搭建文件服务器（Nginx 托管音频 + 封面目录），写入首批测试歌曲

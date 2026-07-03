@@ -23,6 +23,10 @@ public class ApiResponse<T> {
     private String traceId;
 
     public static <T> ApiResponse<T> success(T data) {
-        return ApiResponse.<T>builder().success(Boolean.TRUE).data(data).build();
+        return ApiResponse.<T>builder()
+                .success(Boolean.TRUE)
+                .data(data)
+                .traceId(TraceIdContext.getTraceId())
+                .build();
     }
 }

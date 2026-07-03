@@ -1,0 +1,52 @@
+autoDeleteData: false
+autoDetectedPackages:
+- com.baomidou.mybatisplus.autoconfigure
+- com.jn.music
+- org.mybatis.spring.mapper
+- org.springframework.aop.framework
+- org.springframework.boot.autoconfigure
+- org.springframework.boot.context
+- org.springframework.boot.http
+- org.springframework.boot.jackson
+- org.springframework.boot.jdbc
+- org.springframework.boot.persistence
+- org.springframework.boot.servlet
+- org.springframework.boot.sql
+- org.springframework.boot.tomcat
+- org.springframework.boot.transaction
+- org.springframework.boot.validation
+- org.springframework.boot.web
+- org.springframework.context.event
+- org.springframework.transaction.annotation
+autoKeepDataNum: 10
+enableAutoDetect: true
+entryDisplayConfig:
+  entryType: all
+  excludedPathPatterns: []
+  skipJsCss: true
+  sortOrder: byTime
+funcDisplayConfig:
+  skipConstructors: false
+  skipFieldAccess: true
+  skipFieldChange: true
+  skipGetters: false
+  skipNonProjectPackages: false
+  skipPrivateMethods: false
+  skipSetters: false
+ignoreSameClassCall: null
+ignoreSamePackageCall: null
+includedPackagePrefixes: null
+includedParentClasses: null
+maxColSize: 32
+maxNumFirst: 12
+maxNumFirstImportant: 1024
+maxNumHash: 3
+maxNumHashImportant: 256
+maxObjectDepth: 4
+maxStrSize: 4096
+name: xcodemap-filter
+openMainWindow: true
+recordMode: manual
+sourceDisplayConfig:
+  color: blue
+startOnDebug: false

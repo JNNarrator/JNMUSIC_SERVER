@@ -3,6 +3,9 @@ package com.jn.music.track.service.impl;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.jn.music.common.PageResponse;
+import com.jn.music.common.config.FileServerProperties;
+import com.jn.music.common.enums.ErrorCode;
+import com.jn.music.common.exception.BusinessException;
 import com.jn.music.track.domain.Track;
 import com.jn.music.track.dto.MediaQuality;
 import com.jn.music.track.dto.MediaUrlDTO;
@@ -13,8 +16,11 @@ import com.jn.music.track.service.TrackService;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
  * P0 音乐库服务实现，当前仅覆盖元数据读取与播放地址拼接。
@@ -22,10 +28,21 @@ import org.springframework.stereotype.Service;
 @Service
 public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements TrackService {
 
+    private FileServerProperties fileServerProperties = new FileServerProperties();
+
+    @Autowired
+    public void setFileServerProperties(FileServerProperties fileServerProperties) {
+        this.fileServerProperties = fileServerProperties;
+    }
+
     @Override
     public PageResponse<TrackSummaryDTO> searchTracks(String keyword, Integer page, Integer pageSize) {
-        // 中文 LIKE 模糊匹配；当前版本未接入拼音列。
-        String likePattern = "%" + trimToEmpty(keyword) + "%";
+        String normalizedKeyword = trimToEmpty(keyword);
+        if (normalizedKeyword.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "搜索关键词不能为空");
+        }
+        // 核心：当前阶段用中文 LIKE 覆盖歌曲、歌手、专辑；拼音索引留到后续搜索升级。
+        String likePattern = "%" + normalizedKeyword + "%";
         Page<Track> pageable = new Page<>(page, pageSize);
         Page<Track> resultPage = lambdaQuery()
                 .like(Track::getName, likePattern)
@@ -73,12 +90,25 @@ public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements
 
     @Override
     public TrackDTO getTrackById(String trackId) {
-        Track track = lambdaQuery().eq(Track::getTrackId, trackId).one();
+        String normalizedTrackId = requireTrackId(trackId);
+        Track track = lambdaQuery().eq(Track::getTrackId, normalizedTrackId).one();
+        if (track == null) {
+            throw new BusinessException(ErrorCode.TRACK_NOT_FOUND);
+        }
         return toDto(track);
     }
 
     @Override
     public PageResponse<TrackDTO> getTracksByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return PageResponse.<TrackDTO>builder()
+                    .items(List.of())
+                    .page(1)
+                    .pageSize(0)
+                    .total(0L)
+                    .hasMore(false)
+                    .build();
+        }
         List<Track> tracks = lambdaQuery().in(Track::getTrackId, ids).list();
         List<TrackDTO> items = tracks.stream().map(this::toDto).collect(Collectors.toList());
         return PageResponse.<TrackDTO>builder()
@@ -92,27 +122,23 @@ public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements
 
     @Override
     public MediaUrlDTO getMediaUrl(String trackId, String quality) {
-        Track track = lambdaQuery().select(Track::getFormat, Track::getHasLyric).eq(Track::getTrackId, trackId).one();
+        String normalizedTrackId = requireTrackId(trackId);
+        MediaQuality mediaQuality = parseQuality(quality);
+        Track track = lambdaQuery()
+                .select(Track::getTrackId, Track::getFormat)
+                .eq(Track::getTrackId, normalizedTrackId)
+                .one();
         if (track == null) {
-            return null;
+            throw new BusinessException(ErrorCode.TRACK_NOT_FOUND);
         }
 
-        String extension = track.getFormat();
-        MediaUrlDTO.MediaUrlDTOBuilder builder = MediaUrlDTO.builder()
-                .trackId(trackId)
-                .mediaUrl("http://jn_file.88933.vip:27472/audio/" + trackId + "." + extension)
-                .format(extension)
-                .expiresAt(OffsetDateTime.now().plusHours(24).withOffsetSameInstant(ZoneOffset.UTC));
-
-        if (MediaQuality.MP3_320.getCode().equalsIgnoreCase(quality)) {
-            builder.format("mp3_320");
-            builder.mediaUrl("http://jn_file.88933.vip:27472/audio/" + trackId + ".mp3_320");
-        } else if (MediaQuality.MP3_128.getCode().equalsIgnoreCase(quality)) {
-            builder.format("mp3_128");
-            builder.mediaUrl("http://jn_file.88933.vip:27472/audio/" + trackId + ".mp3_128");
-        }
-
-        return builder.build();
+        String extension = resolveMediaExtension(track.getFormat(), mediaQuality);
+        return MediaUrlDTO.builder()
+                .trackId(normalizedTrackId)
+                .mediaUrl(fileServerProperties.publicUrl("/audio/" + normalizedTrackId + "." + extension))
+                .format(mediaQuality.getCode())
+                .expiresAt(OffsetDateTime.now().plusHours(24).withOffsetSameInstant(ZoneOffset.UTC))
+                .build();
     }
 
     private TrackSummaryDTO toSummary(Track track) {
@@ -124,7 +150,7 @@ public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements
                 .name(track.getName())
                 .artist(track.getArtist())
                 .album(track.getAlbum())
-                .coverUrl(track.getCoverUrl())
+                .coverUrl(resolvePublicResourceUrl(track.getCoverUrl()))
                 .duration(track.getDuration())
                 .build();
     }
@@ -138,13 +164,13 @@ public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements
                 .name(track.getName())
                 .artist(track.getArtist())
                 .album(track.getAlbum())
-                .coverUrl(track.getCoverUrl())
+                .coverUrl(resolvePublicResourceUrl(track.getCoverUrl()))
                 .duration(track.getDuration())
                 .format(track.getFormat())
                 .fileSize(track.getFileSize())
                 .trackNumber(track.getTrackNumber())
                 .hasLyric(Boolean.TRUE.equals(track.getHasLyric()))
-                .lyricUrl(track.getLyricUrl())
+                .lyricUrl(resolvePublicResourceUrl(track.getLyricUrl()))
                 .build();
     }
 
@@ -153,5 +179,47 @@ public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements
             return "";
         }
         return value.replaceAll("\\A\\p{Space}+|\\p{Space}+\\z", "");
+    }
+
+    private static String requireTrackId(String trackId) {
+        String normalizedTrackId = trimToEmpty(trackId);
+        if (normalizedTrackId.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "trackId 不能为空");
+        }
+        return normalizedTrackId;
+    }
+
+    private static MediaQuality parseQuality(String quality) {
+        String normalizedQuality = trimToEmpty(quality);
+        if (normalizedQuality.isEmpty()) {
+            return MediaQuality.FLAC;
+        }
+        for (MediaQuality mediaQuality : MediaQuality.values()) {
+            if (mediaQuality.getCode().equalsIgnoreCase(normalizedQuality)) {
+                return mediaQuality;
+            }
+        }
+        throw new BusinessException(ErrorCode.INVALID_PARAMETER, "不支持的音质: " + quality);
+    }
+
+    private static String resolveMediaExtension(String storedFormat, MediaQuality mediaQuality) {
+        if (mediaQuality == MediaQuality.FLAC) {
+            String normalizedFormat = StringUtils.hasText(storedFormat)
+                    ? storedFormat.trim().toLowerCase(Locale.ROOT)
+                    : MediaQuality.FLAC.getCode();
+            return normalizedFormat;
+        }
+        return mediaQuality.getCode();
+    }
+
+    private String resolvePublicResourceUrl(String resourcePath) {
+        if (!StringUtils.hasText(resourcePath)) {
+            return null;
+        }
+        String trimmedPath = resourcePath.trim();
+        if (trimmedPath.startsWith("http://") || trimmedPath.startsWith("https://")) {
+            return trimmedPath;
+        }
+        return fileServerProperties.publicUrl(trimmedPath);
     }
 }

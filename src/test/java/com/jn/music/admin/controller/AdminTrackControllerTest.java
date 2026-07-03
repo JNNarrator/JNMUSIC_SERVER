@@ -10,6 +10,7 @@ import com.jn.music.admin.dto.AdminTrackRequest;
 import com.jn.music.admin.dto.AdminUploadResponse;
 import com.jn.music.admin.service.AdminTokenStore;
 import com.jn.music.common.ApiResponse;
+import com.jn.music.common.config.FileServerProperties;
 import com.jn.music.track.domain.Track;
 import com.jn.music.track.dto.TrackDTO;
 import com.jn.music.track.mapper.TrackMapper;
@@ -42,6 +43,7 @@ class AdminTrackControllerTest {
                 trackService,
                 trackMapper,
                 tokenStore,
+                new FileServerProperties(),
                 (path, file) -> forwardedPaths.add(path),
                 path -> deletedPaths.add(path));
         when(tokenStore.isValid("token", "admin")).thenReturn(true);
@@ -108,7 +110,7 @@ class AdminTrackControllerTest {
         assertThat(upload.getType()).isEqualTo("audio");
         assertThat(upload.getFormat()).isEqualTo("mp3");
         assertThat(upload.getFileSize()).isEqualTo(3L);
-        assertThat(upload.getUrl()).contains(upload.getTrackId());
+        assertThat(upload.getUrl()).isEqualTo("http://jn_file.88933.vip:27472/audio/" + upload.getTrackId() + ".mp3");
         assertThat(forwardedPaths).hasSize(1);
         assertThat(forwardedPaths.get(0)).startsWith("/audio/").endsWith(".mp3");
     }
