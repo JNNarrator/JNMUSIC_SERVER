@@ -32,7 +32,7 @@ public interface TrackService {
     PageResponse<TrackDTO> getTracksByIds(List<String> ids);
 
     /**
-     * 获取可播放地址，quality 为空时默认返回 flac。
+     * 获取可播放地址
      */
-    MediaUrlDTO getMediaUrl(String trackId, String quality);
+    MediaUrlDTO getMediaUrl(String trackId);
 }

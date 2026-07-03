@@ -93,7 +93,7 @@ public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements
         String normalizedTrackId = requireTrackId(trackId);
         Track track = lambdaQuery().eq(Track::getTrackId, normalizedTrackId).one();
         if (track == null) {
-            throw new BusinessException(ErrorCode.TRACK_NOT_FOUND);
+            return null;
         }
         return toDto(track);
     }
@@ -121,9 +121,9 @@ public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements
     }
 
     @Override
-    public MediaUrlDTO getMediaUrl(String trackId, String quality) {
+    public MediaUrlDTO getMediaUrl(String trackId) {
         String normalizedTrackId = requireTrackId(trackId);
-        MediaQuality mediaQuality = parseQuality(quality);
+       
         Track track = lambdaQuery()
                 .select(Track::getTrackId, Track::getFormat)
                 .eq(Track::getTrackId, normalizedTrackId)
@@ -131,6 +131,7 @@ public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements
         if (track == null) {
             throw new BusinessException(ErrorCode.TRACK_NOT_FOUND);
         }
+	    MediaQuality mediaQuality = parseQuality(track.getFormat());
 
         String extension = resolveMediaExtension(track.getFormat(), mediaQuality);
         return MediaUrlDTO.builder()

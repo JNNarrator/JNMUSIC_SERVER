@@ -11,9 +11,9 @@ import org.springframework.util.StringUtils;
 @ConfigurationProperties(prefix = "jnmusic.file-server")
 public class FileServerProperties {
 
-    private String internalBaseUrl = "http://jn_file.88933.vip:27472";
+    private String internalBaseUrl = "http://jn_file.88933.vip";
 
-    private String publicBaseUrl = "http://jn_file.88933.vip:27472";
+    private String publicBaseUrl = "http://jn_file.88933.vip";
 
     public String getInternalBaseUrl() {
         return normalizeBaseUrl(internalBaseUrl);

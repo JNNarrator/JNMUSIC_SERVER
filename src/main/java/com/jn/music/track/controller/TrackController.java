@@ -72,9 +72,8 @@ public class TrackController {
 
     @GetMapping("/{trackId}/media-url")
     public ApiResponse<MediaUrlDTO> getMediaUrl(
-            @PathVariable("trackId") String trackId,
-            @RequestParam(value = "quality", defaultValue = "flac") String quality) {
-        return ApiResponse.success(trackService.getMediaUrl(trackId, quality));
+            @PathVariable("trackId") String trackId) {
+        return ApiResponse.success(trackService.getMediaUrl(trackId));
     }
 
     private PageParams normalizePageParams(Integer page, Integer pageSize, int defaultPageSize) {

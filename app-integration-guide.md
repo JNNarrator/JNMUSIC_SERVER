@@ -289,12 +289,8 @@ GET /api/v1/tracks/batch?ids=T0000421,T0000422,T0000423
 ### 2.5 获取播放地址
 
 ```http
-GET /api/v1/tracks/{trackId}/media-url?quality=flac
+GET /api/v1/tracks/{trackId}/media-url
 ```
-
-| 查询参数 | 类型 | 必填 | 默认 | 说明 |
-| --- | --- | --- | --- | --- |
-| `quality` | string | 否 | `flac` | 可选：`flac`、`mp3_320`、`mp3_128` |
 
 说明：
 - 文件地址由后端根据文件服务器配置拼接，客户端直接消费。

@@ -12,6 +12,7 @@ public enum MediaQuality {
 
     FLAC("flac"),
     MP3_320("mp3_320"),
+	MP3("mp3"),
     MP3_128("mp3_128");
 
     private final String code;

@@ -99,7 +99,7 @@ public class AdminTrackController {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(error(ErrorCode.INVALID_PARAMETER, "文件不能为空"));
         }
-        String resolvedTrackId = StringUtils.hasText(trackId) ? trackId.trim() : generateTrackId();
+        String resolvedTrackId = !StringUtils.isEmpty(trackId) ? trackId.trim() : generateTrackId();
         String originalFilename = file.getOriginalFilename();
         String format = resolveFormat(type, originalFilename, file.getContentType());
         String path = resolvePath(type, resolvedTrackId, format);
