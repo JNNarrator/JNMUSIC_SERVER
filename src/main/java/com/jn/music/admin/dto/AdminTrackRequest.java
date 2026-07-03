@@ -1,7 +1,6 @@
 package com.jn.music.admin.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
@@ -11,9 +10,10 @@ public class AdminTrackRequest {
 
     @NotBlank(message = "track name is required")
     private String name;
+
+    @NotBlank(message = "artist is required")
     private String artist;
     private String album;
-    @NotNull(message = "duration is required")
     private Integer duration;
     private String format;
     private Long fileSize;

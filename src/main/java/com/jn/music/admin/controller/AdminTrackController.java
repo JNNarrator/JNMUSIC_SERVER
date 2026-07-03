@@ -49,6 +49,7 @@ public class AdminTrackController {
     private static final String FILE_SERVER_BASE_URL = "http://jn_file.88933.vip:27472";
     private static final String UNKNOWN_ARTIST = "\u672a\u77e5";
     private static final String UNKNOWN_ALBUM = "\u672a\u77e5";
+    private static final String UNKNOWN_FORMAT = "\u672a\u77e5";
 
     private final TrackService trackService;
     private final TrackMapper trackMapper;
@@ -216,6 +217,10 @@ public class AdminTrackController {
         return StringUtils.hasText(album) ? album.trim() : UNKNOWN_ALBUM;
     }
 
+    private String normalizeFormat(String format) {
+        return StringUtils.hasText(format) ? format.trim().toLowerCase(Locale.ROOT) : UNKNOWN_FORMAT;
+    }
+
     private void deleteTrackFiles(Track track) {
         deletePathIfPresent(audioPath(track));
         deletePathIfPresent(relativePath(track.getCoverUrl()));
@@ -303,15 +308,21 @@ public class AdminTrackController {
             @Valid @RequestBody AdminTrackRequest trackRequest) {
         checkAdminAuth(token, username);
         String resolvedTrackId = StringUtils.hasText(trackRequest.getTrackId()) ? trackRequest.getTrackId().trim() : generateTrackId();
+        Integer duration = trackRequest.getDuration() != null ? Math.max(trackRequest.getDuration(), 0) : 0;
+        Long fileSize = trackRequest.getFileSize() != null ? Math.max(trackRequest.getFileSize(), 0L) : 0L;
+        Integer trackNumber = trackRequest.getTrackNumber() != null && trackRequest.getTrackNumber() > 0
+                ? trackRequest.getTrackNumber()
+                : 1;
         Track track = Track.builder()
                 .trackId(resolvedTrackId)
-                .name(trackRequest.getName())
+                .name(trackRequest.getName().trim())
                 .artist(normalizeArtist(trackRequest.getArtist()))
                 .album(normalizeAlbum(trackRequest.getAlbum()))
-                .duration(trackRequest.getDuration())
-                .format(trackRequest.getFormat())
-                .fileSize(trackRequest.getFileSize())
-                .trackNumber(trackRequest.getTrackNumber())
+                // 新增页不再暴露这些字段，保存时统一兜底，避免数据库留下需要人工维护的空值。
+                .duration(duration)
+                .format(normalizeFormat(trackRequest.getFormat()))
+                .fileSize(fileSize)
+                .trackNumber(trackNumber)
                 .hasLyric(Boolean.TRUE.equals(trackRequest.getHasLyric()))
                 .coverUrl(trackRequest.getCoverUrl())
                 .lyricUrl(trackRequest.getLyricUrl())

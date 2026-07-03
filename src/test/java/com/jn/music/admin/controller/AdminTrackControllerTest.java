@@ -48,29 +48,35 @@ class AdminTrackControllerTest {
     }
 
     @Test
-    void saveGeneratesTrackIdAndDefaultsBlankArtist() {
+    void saveWithOnlyNameAndArtistGeneratesMissingMetadata() {
         when(trackMapper.insert(any(Track.class))).thenReturn(1);
 
         AdminTrackRequest request = new AdminTrackRequest();
-        request.setName("Song A");
-        request.setArtist(" ");
-        request.setAlbum(" ");
-        request.setDuration(123);
-        request.setFormat("mp3");
+        request.setName(" Song A ");
+        request.setArtist(" Artist A ");
 
         ResponseEntity<ApiResponse<Track>> response = controller.save(null, "token", "admin", request);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         Track saved = response.getBody().getData();
         assertThat(saved.getTrackId()).matches("T[0-9a-f]{8}");
-        assertThat(saved.getArtist()).isEqualTo("未知");
+        assertThat(saved.getName()).isEqualTo("Song A");
+        assertThat(saved.getArtist()).isEqualTo("Artist A");
         assertThat(saved.getAlbum()).isEqualTo("未知");
+        assertThat(saved.getDuration()).isZero();
+        assertThat(saved.getFormat()).isEqualTo("未知");
+        assertThat(saved.getFileSize()).isZero();
+        assertThat(saved.getTrackNumber()).isEqualTo(1);
+        assertThat(saved.getHasLyric()).isFalse();
+        assertThat(saved.getCoverUrl()).isNull();
+        assertThat(saved.getLyricUrl()).isNull();
 
         ArgumentCaptor<Track> captor = ArgumentCaptor.forClass(Track.class);
         verify(trackMapper).insert(captor.capture());
         assertThat(captor.getValue().getTrackId()).isEqualTo(saved.getTrackId());
-        assertThat(captor.getValue().getArtist()).isEqualTo("未知");
+        assertThat(captor.getValue().getArtist()).isEqualTo("Artist A");
         assertThat(captor.getValue().getAlbum()).isEqualTo("未知");
+        assertThat(captor.getValue().getFormat()).isEqualTo("未知");
     }
 
     @Test

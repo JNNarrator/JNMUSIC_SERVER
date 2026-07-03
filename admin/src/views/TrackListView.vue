@@ -6,19 +6,13 @@ type Track = {
   trackId: string
   name: string
   artist: string
-  album?: string
-  coverUrl?: string
-  duration?: number
   format?: string
   fileSize?: number
-  trackNumber?: number
-  hasLyric?: boolean
-  lyricUrl?: string
 }
 
 type UploadResult = {
   trackId: string
-  type: 'audio' | 'cover' | 'lyric'
+  type: 'audio'
   fileName?: string
   format?: string
   fileSize?: number
@@ -49,25 +43,15 @@ const form = reactive({
   trackId: '',
   name: '',
   artist: '',
-  album: '',
-  duration: 0,
   format: '',
-  fileSize: 0,
-  trackNumber: 1,
-  hasLyric: false,
-  coverUrl: '',
-  lyricUrl: ''
+  fileSize: 0
 })
 const uploadState = reactive<Record<UploadType, UploadStatus>>({
-  audio: { uploading: false, progress: 0, fileName: '', message: '', error: '' },
-  cover: { uploading: false, progress: 0, fileName: '', message: '', error: '' },
-  lyric: { uploading: false, progress: 0, fileName: '', message: '', error: '' }
+  audio: { uploading: false, progress: 0, fileName: '', message: '', error: '' }
 })
 const isUploading = computed(() => Object.values(uploadState).some((item) => item.uploading))
 const uploadItems = computed(() => [
-  { type: 'audio' as const, label: '音频', ...uploadState.audio },
-  { type: 'cover' as const, label: '封面', ...uploadState.cover },
-  { type: 'lyric' as const, label: '歌词', ...uploadState.lyric }
+  { type: 'audio' as const, label: '音频', ...uploadState.audio }
 ])
 
 async function fetchTracks() {
@@ -99,14 +83,8 @@ function openCreate() {
     trackId: '',
     name: '',
     artist: '',
-    album: '',
-    duration: 0,
     format: '',
-    fileSize: 0,
-    trackNumber: 1,
-    hasLyric: false,
-    coverUrl: '',
-    lyricUrl: ''
+    fileSize: 0
   })
 }
 
@@ -119,20 +97,18 @@ function openEdit(item: Track) {
     trackId: item.trackId,
     name: item.name,
     artist: item.artist,
-    album: item.album ?? '',
-    duration: item.duration ?? 0,
     format: item.format ?? '',
-    fileSize: item.fileSize ?? 0,
-    trackNumber: item.trackNumber ?? 1,
-    hasLyric: item.hasLyric ?? false,
-    coverUrl: item.coverUrl ?? '',
-    lyricUrl: item.lyricUrl ?? ''
+    fileSize: item.fileSize ?? 0
   })
 }
 
 async function submitForm() {
   if (isUploading.value) {
     alert('文件还在上传中，请上传完成后再保存')
+    return
+  }
+  if (form.mode === 'create' && !form.trackId) {
+    alert('请先上传音频文件')
     return
   }
   form.saving = true
@@ -146,16 +122,11 @@ async function submitForm() {
       },
       body: JSON.stringify({
         trackId: form.trackId || null,
-        name: form.name,
-        artist: form.artist || null,
-        album: form.album,
-        duration: Number(form.duration || 0),
+        // 核心：页面只维护歌名和歌手，其他字段由上传结果或后端默认值生成。
+        name: form.name.trim(),
+        artist: form.artist.trim(),
         format: form.format || null,
-        fileSize: Number(form.fileSize || 0) || null,
-        trackNumber: Number(form.trackNumber || 0) || null,
-        hasLyric: Boolean(form.hasLyric),
-        coverUrl: form.coverUrl || null,
-        lyricUrl: form.lyricUrl || null
+        fileSize: Number(form.fileSize || 0) || null
       })
     })
     const payload = await response.json()
@@ -253,9 +224,7 @@ async function handleUpload(event: Event, type: UploadType) {
 }
 
 function uploadLabel(type: UploadType) {
-  if (type === 'audio') return '音频'
-  if (type === 'cover') return '封面'
-  return '歌词'
+  return '音频'
 }
 
 function applyUploadResult(result: UploadResult) {
@@ -265,11 +234,6 @@ function applyUploadResult(result: UploadResult) {
   if (result.type === 'audio') {
     form.format = result.format ?? form.format
     form.fileSize = result.fileSize ?? form.fileSize
-  } else if (result.type === 'cover') {
-    form.coverUrl = result.url ?? form.coverUrl
-  } else if (result.type === 'lyric') {
-    form.lyricUrl = result.url ?? form.lyricUrl
-    form.hasLyric = true
   }
 }
 
@@ -335,8 +299,6 @@ onMounted(fetchTracks)
             <th>歌曲ID</th>
             <th>名称</th>
             <th>歌手</th>
-            <th>专辑</th>
-            <th>时长</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -345,15 +307,13 @@ onMounted(fetchTracks)
             <td>{{ item.trackId }}</td>
             <td>{{ item.name }}</td>
             <td>{{ item.artist }}</td>
-            <td>{{ item.album || '-' }}</td>
-            <td>{{ item.duration }}s</td>
             <td>
               <button class="tiny" @click="openEdit(item)">编辑</button>
               <button class="tiny danger" @click="deleteTrack(item)">删除</button>
             </td>
           </tr>
           <tr v-if="!trackList.length">
-            <td colspan="6" class="empty">暂无数据</td>
+            <td colspan="4" class="empty">暂无数据</td>
           </tr>
         </tbody>
       </table>
@@ -370,19 +330,11 @@ onMounted(fetchTracks)
         <form class="track-form" @submit.prevent="submitForm">
           <div class="uploader">
             <span class="uploader-title">快速上传 - 自动识别歌手 / 歌名</span>
-            <p class="uploader-hint">文件名格式为「歌手 - 歌名.mp3」会自动填入下方字段，专辑不填则默认为「未知」</p>
+            <p class="uploader-hint">文件名格式为「歌手 - 歌名.mp3」会自动填入下方字段，其他信息自动生成。</p>
             <div class="uploader-actions">
               <label class="file-label">
                 <input type="file" :disabled="isUploading" @change="handleUpload($event, 'audio')" />
                 <span>上传音频</span>
-              </label>
-              <label class="file-label">
-                <input type="file" accept="image/*" :disabled="isUploading" @change="handleUpload($event, 'cover')" />
-                <span>上传封面</span>
-              </label>
-              <label class="file-label">
-                <input type="file" accept=".lrc,.txt" :disabled="isUploading" @change="handleUpload($event, 'lyric')" />
-                <span>上传歌词</span>
               </label>
             </div>
             <div class="upload-progress-list" aria-live="polite">
@@ -414,41 +366,8 @@ onMounted(fetchTracks)
           </label>
           <label>
             <span>歌手</span>
-            <input v-model="form.artist" />
+            <input v-model="form.artist" required />
           </label>
-          <label>
-            <span>专辑</span>
-            <input v-model="form.album" />
-          </label>
-          <label>
-            <span>时长(秒)</span>
-            <input v-model.number="form.duration" type="number" min="0" />
-          </label>
-          <label>
-            <span>格式</span>
-            <input v-model="form.format" />
-          </label>
-          <label>
-            <span>文件大小</span>
-            <input v-model.number="form.fileSize" type="number" min="0" />
-          </label>
-          <label>
-            <span>曲目序号</span>
-            <input v-model.number="form.trackNumber" type="number" min="1" />
-          </label>
-          <label class="checkbox">
-            <input v-model="form.hasLyric" type="checkbox" />
-            <span>有歌词</span>
-          </label>
-          <label>
-            <span>封面地址</span>
-            <input v-model="form.coverUrl" />
-          </label>
-          <label>
-            <span>歌词地址</span>
-            <input v-model="form.lyricUrl" />
-          </label>
-
 
           <footer class="sheet-actions">
             <button type="button" class="ghost" :disabled="isUploading" @click="form.visible = false">取消</button>
@@ -775,6 +694,3 @@ button:disabled {
   }
 }
 </style>
-
-
-
