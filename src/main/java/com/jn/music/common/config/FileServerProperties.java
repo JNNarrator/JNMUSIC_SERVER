@@ -15,6 +15,26 @@ public class FileServerProperties {
 
     private String publicBaseUrl = "http://jn_file.88933.vip";
 
+    private String username = "admin";
+
+    private String password = "jiangnan123";
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
     public String getInternalBaseUrl() {
         return normalizeBaseUrl(internalBaseUrl);
     }
