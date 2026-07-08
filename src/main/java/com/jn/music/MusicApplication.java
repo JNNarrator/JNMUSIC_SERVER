@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerIntercept
 @MapperScan("com.jn.music.**.mapper")
 @SpringBootApplication
 public class MusicApplication {
+	//https://www.compresss.com/cn/compress-audio.html
 
 	public static void main(String[] args) {
 		SpringApplication.run(MusicApplication.class, args);
