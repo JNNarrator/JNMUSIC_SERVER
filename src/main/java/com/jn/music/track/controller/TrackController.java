@@ -9,6 +9,7 @@ import com.jn.music.track.service.TrackService;
 import com.jn.music.track.dto.MediaUrlDTO;
 import com.jn.music.track.dto.TrackDTO;
 import com.jn.music.track.dto.TrackSummaryDTO;
+import com.jn.music.track.dto.TrackWithUrlDTO;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -74,6 +75,35 @@ public class TrackController {
     public ApiResponse<MediaUrlDTO> getMediaUrl(
             @PathVariable("trackId") String trackId) {
         return ApiResponse.success(trackService.getMediaUrl(trackId));
+    }
+
+    /**
+     * APP专用接口：返回带播放直链的歌曲列表。
+     * 适用于APP直接播放场景，避免二次请求。
+     */
+    @GetMapping("/app")
+    public ApiResponse<PageResponse<TrackWithUrlDTO>> listTracksForApp(
+            @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
+        PageParams pageParams = normalizePageParams(page, pageSize, 20);
+        return ApiResponse.success(trackService.listTracksWithUrl(pageParams.page(), pageParams.pageSize()));
+    }
+
+    /**
+     * APP专用接口：搜索带播放直链的歌曲。
+     * 适用于APP直接播放场景，避免二次请求。
+     */
+    @GetMapping("/app/search")
+    public ApiResponse<PageResponse<TrackWithUrlDTO>> searchTracksForApp(
+            @RequestParam("q") String q,
+            @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
+        String keyword = trimToEmpty(q);
+        if (keyword.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "搜索关键词不能为空");
+        }
+        PageParams pageParams = normalizePageParams(page, pageSize, 20);
+        return ApiResponse.success(trackService.searchTracksWithUrl(keyword, pageParams.page(), pageParams.pageSize()));
     }
 
     private PageParams normalizePageParams(Integer page, Integer pageSize, int defaultPageSize) {

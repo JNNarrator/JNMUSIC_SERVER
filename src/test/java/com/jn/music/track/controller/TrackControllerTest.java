@@ -107,7 +107,7 @@ class TrackControllerTest {
 
     @Test
     void mediaUrlReturnsPlayableUrlEnvelope() throws Exception {
-        when(trackService.getMediaUrl("T0000421", "flac")).thenReturn(MediaUrlDTO.builder()
+        when(trackService.getMediaUrl("T0000421")).thenReturn(MediaUrlDTO.builder()
                 .trackId("T0000421")
                 .mediaUrl("http://media.example.com/audio/T0000421.flac")
                 .format("flac")

@@ -1,226 +1,310 @@
 package com.jn.music.track.service.impl;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.jn.music.common.PageResponse;
-import com.jn.music.common.config.FileServerProperties;
 import com.jn.music.common.enums.ErrorCode;
 import com.jn.music.common.exception.BusinessException;
-import com.jn.music.track.domain.Track;
-import com.jn.music.track.dto.MediaQuality;
+import com.jn.music.lanzou.LanzouApiClient;
+import com.jn.music.lanzou.LanzouSessionException;
+import com.jn.music.lanzou.dto.LanzouDirectLink;
+import com.jn.music.lanzou.dto.LanzouFile;
+import com.jn.music.lanzou.dto.LanzouPageResult;
 import com.jn.music.track.dto.MediaUrlDTO;
 import com.jn.music.track.dto.TrackDTO;
 import com.jn.music.track.dto.TrackSummaryDTO;
-import com.jn.music.track.mapper.TrackMapper;
+import com.jn.music.track.dto.TrackWithUrlDTO;
 import com.jn.music.track.service.TrackService;
+
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Autowired;
+import java.util.Set;
+
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 /**
- * P0 音乐库服务实现，当前仅覆盖元数据读取与播放地址拼接。
+ * 从蓝奏云根目录读取音频文件作为音乐库数据源。
+ * 目标：只读，没有增删；文件按 "作者 - 歌名.扩展名" 惯例解析元数据。
  */
 @Service
-public class TrackServiceImpl extends ServiceImpl<TrackMapper, Track> implements TrackService {
+public class TrackServiceImpl implements TrackService {
 
-    private FileServerProperties fileServerProperties = new FileServerProperties();
+    /** 支持的音频后缀（小写）。 */
+    private static final Set<String> AUDIO_EXTENSIONS = Set.of(
+            "flac", "mp3", "wav", "aac", "m4a", "ogg", "opus", "ape"
+    );
 
-    @Autowired
-    public void setFileServerProperties(FileServerProperties fileServerProperties) {
-        this.fileServerProperties = fileServerProperties;
-    }
+    private static final String ROOT_FOLDER_ID = "-1";
+    /** 蓝奏云根目录一次最多能拉的文件数（前端不做真正翻页时，把常见几百首装下）。 */
+    private static final int MAX_PAGES = 20;
 
-    @Override
-    public PageResponse<TrackSummaryDTO> searchTracks(String keyword, Integer page, Integer pageSize) {
-        String normalizedKeyword = trimToEmpty(keyword);
-        if (normalizedKeyword.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "搜索关键词不能为空");
-        }
-        // 核心：当前阶段用中文 LIKE 覆盖歌曲、歌手、专辑；拼音索引留到后续搜索升级。
-        String likePattern = "%" + normalizedKeyword + "%";
-        Page<Track> pageable = new Page<>(page, pageSize);
-        Page<Track> resultPage = lambdaQuery()
-                .like(Track::getName, likePattern)
-                .or()
-                .like(Track::getArtist, likePattern)
-                .or()
-                .like(Track::getAlbum, likePattern)
-                .orderByDesc(Track::getTrackId)
-                .page(pageable);
+    private final LanzouApiClient lanzouClient;
 
-        List<TrackSummaryDTO> items = resultPage.getRecords()
-                .stream()
-                .map(this::toSummary)
-                .collect(Collectors.toList());
-
-        return PageResponse.<TrackSummaryDTO>builder()
-                .items(items)
-                .page((int) resultPage.getCurrent())
-                .pageSize((int) resultPage.getSize())
-                .total(resultPage.getTotal())
-                .hasMore(resultPage.hasNext())
-                .build();
+    public TrackServiceImpl(LanzouApiClient lanzouClient) {
+        this.lanzouClient = lanzouClient;
     }
 
     @Override
     public PageResponse<TrackSummaryDTO> listTracks(Integer page, Integer pageSize) {
-        Page<Track> pageable = new Page<>(page, pageSize);
-        Page<Track> resultPage = lambdaQuery()
-                .orderByDesc(Track::getTrackId)
-                .page(pageable);
+        int p = normalize(page, 1);
+        int ps = normalize(pageSize, 20);
 
-        List<TrackSummaryDTO> items = resultPage.getRecords()
-                .stream()
-                .map(this::toSummary)
-                .collect(Collectors.toList());
+        List<TrackSummaryDTO> all = loadAllAudioSummaries();
+        return paginate(all, p, ps);
+    }
 
-        return PageResponse.<TrackSummaryDTO>builder()
-                .items(items)
-                .page((int) resultPage.getCurrent())
-                .pageSize((int) resultPage.getSize())
-                .total(resultPage.getTotal())
-                .hasMore(resultPage.hasNext())
-                .build();
+    @Override
+    public PageResponse<TrackSummaryDTO> searchTracks(String keyword, Integer page, Integer pageSize) {
+        String kw = trim(keyword);
+        if (kw.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "搜索关键词不能为空");
+        }
+        int p = normalize(page, 1);
+        int ps = normalize(pageSize, 20);
+        String lower = kw.toLowerCase(Locale.ROOT);
+
+        List<TrackSummaryDTO> matched = new ArrayList<>();
+        for (TrackSummaryDTO t : loadAllAudioSummaries()) {
+            if (containsIgnoreCase(t.getName(), lower)
+                    || containsIgnoreCase(t.getArtist(), lower)
+                    || containsIgnoreCase(t.getAlbum(), lower)) {
+                matched.add(t);
+            }
+        }
+        return paginate(matched, p, ps);
+    }
+
+    @Override
+    public PageResponse<TrackWithUrlDTO> listTracksWithUrl(Integer page, Integer pageSize) {
+        int p = normalize(page, 1);
+        int ps = normalize(pageSize, 20);
+
+        List<TrackWithUrlDTO> all = loadAllAudioWithUrl();
+        return paginate(all, p, ps);
+    }
+
+    @Override
+    public PageResponse<TrackWithUrlDTO> searchTracksWithUrl(String keyword, Integer page, Integer pageSize) {
+        String kw = trim(keyword);
+        if (kw.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "搜索关键词不能为空");
+        }
+        int p = normalize(page, 1);
+        int ps = normalize(pageSize, 20);
+        String lower = kw.toLowerCase(Locale.ROOT);
+
+        List<TrackWithUrlDTO> matched = new ArrayList<>();
+        for (TrackWithUrlDTO t : loadAllAudioWithUrl()) {
+            if (containsIgnoreCase(t.getName(), lower)
+                    || containsIgnoreCase(t.getArtist(), lower)) {
+                matched.add(t);
+            }
+        }
+        return paginate(matched, p, ps);
     }
 
     @Override
     public TrackDTO getTrackById(String trackId) {
-        String normalizedTrackId = requireTrackId(trackId);
-        Track track = lambdaQuery().eq(Track::getTrackId, normalizedTrackId).one();
-        if (track == null) {
-            return null;
+        String id = requireTrackId(trackId);
+        for (LanzouFile f : loadAllAudioFiles()) {
+            if (id.equals(f.id())) {
+                ParsedName pn = parseName(f.name());
+                return TrackDTO.builder()
+                        .trackId(f.id())
+                        .name(pn.name())
+                        .artist(pn.artist())
+                        .format(pn.format())
+                        .fileSize(f.size())
+                        .hasLyric(false)
+                        .build();
+            }
         }
-        return toDto(track);
+        return null;
     }
 
     @Override
     public PageResponse<TrackDTO> getTracksByIds(List<String> ids) {
+        List<TrackDTO> items = new ArrayList<>();
         if (ids == null || ids.isEmpty()) {
             return PageResponse.<TrackDTO>builder()
-                    .items(List.of())
-                    .page(1)
-                    .pageSize(0)
-                    .total(0L)
-                    .hasMore(false)
-                    .build();
+                    .items(items).page(1).pageSize(0).total(0L).hasMore(false).build();
         }
-        List<Track> tracks = lambdaQuery().in(Track::getTrackId, ids).list();
-        List<TrackDTO> items = tracks.stream().map(this::toDto).collect(Collectors.toList());
+        List<LanzouFile> files = loadAllAudioFiles();
+        for (String id : ids) {
+            for (LanzouFile f : files) {
+                if (f.id().equals(id)) {
+                    ParsedName pn = parseName(f.name());
+                    items.add(TrackDTO.builder()
+                            .trackId(f.id())
+                            .name(pn.name())
+                            .artist(pn.artist())
+                            .format(pn.format())
+                            .fileSize(f.size())
+                            .hasLyric(false)
+                            .build());
+                    break;
+                }
+            }
+        }
         return PageResponse.<TrackDTO>builder()
-                .items(items)
-                .page(1)
-                .pageSize(ids.size())
-                .total((long) items.size())
-                .hasMore(false)
-                .build();
+                .items(items).page(1).pageSize(items.size())
+                .total((long) items.size()).hasMore(false).build();
     }
 
     @Override
     public MediaUrlDTO getMediaUrl(String trackId) {
-        String normalizedTrackId = requireTrackId(trackId);
-       
-        Track track = lambdaQuery()
-                .select(Track::getTrackId, Track::getFormat)
-                .eq(Track::getTrackId, normalizedTrackId)
-                .one();
-        if (track == null) {
+        String id = requireTrackId(trackId);
+        // 找到对应的文件（用于确定 format），不存在直接返回 404 语义
+        String format = "";
+        for (LanzouFile f : loadAllAudioFiles()) {
+            if (id.equals(f.id())) {
+                format = parseName(f.name()).format();
+                break;
+            }
+        }
+        if (format.isEmpty()) {
             throw new BusinessException(ErrorCode.TRACK_NOT_FOUND);
         }
-	    MediaQuality mediaQuality = parseQuality(track.getFormat());
 
-        String extension = resolveMediaExtension(track.getFormat(), mediaQuality);
+        LanzouDirectLink link;
+        try {
+            link = lanzouClient.getFileDownloadLink(id);
+        } catch (LanzouSessionException e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "获取蓝奏云直链失败: " + e.getMessage());
+        }
         return MediaUrlDTO.builder()
-                .trackId(normalizedTrackId)
-                .mediaUrl(fileServerProperties.publicUrl("/audio/" + normalizedTrackId + "." + extension))
-                .format(mediaQuality.getCode())
-                .expiresAt(OffsetDateTime.now().plusHours(24).withOffsetSameInstant(ZoneOffset.UTC))
+                .trackId(id)
+                .mediaUrl(link.url())
+                .format(format)
+                .expiresAt(OffsetDateTime.ofInstant(link.expiresAt(), ZoneOffset.UTC))
                 .build();
     }
 
-    private TrackSummaryDTO toSummary(Track track) {
-        if (track == null) {
-            return null;
+    // ==================== 内部辅助 ====================
+
+    /** 拉取蓝奏云根目录下的所有音频文件（跨页汇总；MAX_PAGES 上限保护）。 */
+    private List<LanzouFile> loadAllAudioFiles() {
+        List<LanzouFile> out = new ArrayList<>();
+        try {
+            for (int page = 1; page <= MAX_PAGES; page++) {
+                LanzouPageResult r = lanzouClient.listFiles(ROOT_FOLDER_ID, page);
+                if (r == null || r.files() == null || r.files().isEmpty()) break;
+                for (LanzouFile f : r.files()) {
+                    if (isAudio(f.name())) out.add(f);
+                }
+                // 蓝奏云一页 20 条，不足 20 说明已到末页
+                if (r.files().size() < 20) break;
+            }
+        } catch (LanzouSessionException e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "蓝奏云读取失败: " + e.getMessage());
         }
-        return TrackSummaryDTO.builder()
-                .trackId(track.getTrackId())
-                .name(track.getName())
-                .artist(track.getArtist())
-                .album(track.getAlbum())
-                .coverUrl(resolvePublicResourceUrl(track.getCoverUrl()))
-                .duration(track.getDuration())
+        return out;
+    }
+
+    private List<TrackSummaryDTO> loadAllAudioSummaries() {
+        List<TrackSummaryDTO> out = new ArrayList<>();
+        for (LanzouFile f : loadAllAudioFiles()) {
+            ParsedName pn = parseName(f.name());
+            out.add(TrackSummaryDTO.builder()
+                    .trackId(f.id())
+                    .name(pn.name())
+                    .artist(pn.artist())
+                    .build());
+        }
+        return out;
+    }
+
+    /** 加载所有音频文件并获取播放直链。 */
+    private List<TrackWithUrlDTO> loadAllAudioWithUrl() {
+        List<TrackWithUrlDTO> out = new ArrayList<>();
+        for (LanzouFile f : loadAllAudioFiles()) {
+            ParsedName pn = parseName(f.name());
+            try {
+                LanzouDirectLink link = lanzouClient.getFileDownloadLink(f.id());
+                out.add(TrackWithUrlDTO.builder()
+                        .trackId(f.id())
+                        .name(pn.name())
+                        .artist(pn.artist())
+                        .format(pn.format())
+                        .fileSize(f.size())
+                        .mediaUrl(link.url())
+                        .urlExpiresAt(OffsetDateTime.ofInstant(link.expiresAt(), ZoneOffset.UTC))
+                        .build());
+            } catch (LanzouSessionException e) {
+                // 如果获取直链失败，仍然返回基本信息，但不包含URL
+                out.add(TrackWithUrlDTO.builder()
+                        .trackId(f.id())
+                        .name(pn.name())
+                        .artist(pn.artist())
+                        .format(pn.format())
+                        .fileSize(f.size())
+                        .build());
+            }
+        }
+        return out;
+    }
+
+    private static <T> PageResponse<T> paginate(List<T> all, int page, int pageSize) {
+        int total = all.size();
+        int from = Math.min((page - 1) * pageSize, total);
+        int to = Math.min(from + pageSize, total);
+        return PageResponse.<T>builder()
+                .items(new ArrayList<>(all.subList(from, to)))
+                .page(page)
+                .pageSize(pageSize)
+                .total((long) total)
+                .hasMore(to < total)
                 .build();
     }
 
-    private TrackDTO toDto(Track track) {
-        if (track == null) {
-            return null;
-        }
-        return TrackDTO.builder()
-                .trackId(track.getTrackId())
-                .name(track.getName())
-                .artist(track.getArtist())
-                .album(track.getAlbum())
-                .coverUrl(resolvePublicResourceUrl(track.getCoverUrl()))
-                .duration(track.getDuration())
-                .format(track.getFormat())
-                .fileSize(track.getFileSize())
-                .trackNumber(track.getTrackNumber())
-                .hasLyric(Boolean.TRUE.equals(track.getHasLyric()))
-                .lyricUrl(resolvePublicResourceUrl(track.getLyricUrl()))
-                .build();
+    private static boolean isAudio(String fileName) {
+        if (fileName == null) return false;
+        int dot = fileName.lastIndexOf('.');
+        if (dot < 0 || dot == fileName.length() - 1) return false;
+        return AUDIO_EXTENSIONS.contains(fileName.substring(dot + 1).toLowerCase(Locale.ROOT));
     }
 
-    private static String trimToEmpty(String value) {
-        if (value == null) {
-            return "";
+    /** 从文件名解析 artist / name / format。支持 "作者 - 歌名.ext"；无 dash 时 artist=null。 */
+    static ParsedName parseName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return new ParsedName("", null, "");
         }
-        return value.replaceAll("\\A\\p{Space}+|\\p{Space}+\\z", "");
+        int dot = fileName.lastIndexOf('.');
+        String stem = dot > 0 ? fileName.substring(0, dot) : fileName;
+        String ext = dot > 0 && dot < fileName.length() - 1
+                ? fileName.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
+
+        // 蓝奏云保存的文件名会用 " - " 分隔作者和歌名（也支持 " -" / "- " 变体）
+        int sep = stem.indexOf(" - ");
+        if (sep < 0) sep = stem.indexOf(" -");
+        if (sep < 0) sep = stem.indexOf("- ");
+        if (sep > 0) {
+            String artist = stem.substring(0, sep).trim();
+            String name = stem.substring(sep + " - ".length()).trim();
+            if (name.isEmpty()) name = stem;
+            return new ParsedName(name, artist.isEmpty() ? null : artist, ext);
+        }
+        return new ParsedName(stem, null, ext);
+    }
+
+    private static String trim(String v) { return v == null ? "" : v.trim(); }
+
+    private static int normalize(Integer v, int fallback) {
+        if (v == null || v < 1) return fallback;
+        return v;
     }
 
     private static String requireTrackId(String trackId) {
-        String normalizedTrackId = trimToEmpty(trackId);
-        if (normalizedTrackId.isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "trackId 不能为空");
-        }
-        return normalizedTrackId;
+        String s = trim(trackId);
+        if (s.isEmpty()) throw new BusinessException(ErrorCode.INVALID_PARAMETER, "trackId 不能为空");
+        return s;
     }
 
-    private static MediaQuality parseQuality(String quality) {
-        String normalizedQuality = trimToEmpty(quality);
-        if (normalizedQuality.isEmpty()) {
-            return MediaQuality.FLAC;
-        }
-        for (MediaQuality mediaQuality : MediaQuality.values()) {
-            if (mediaQuality.getCode().equalsIgnoreCase(normalizedQuality)) {
-                return mediaQuality;
-            }
-        }
-        throw new BusinessException(ErrorCode.INVALID_PARAMETER, "不支持的音质: " + quality);
+    private static boolean containsIgnoreCase(String source, String kwLower) {
+        return source != null && source.toLowerCase(Locale.ROOT).contains(kwLower);
     }
 
-    private static String resolveMediaExtension(String storedFormat, MediaQuality mediaQuality) {
-        if (mediaQuality == MediaQuality.FLAC) {
-            String normalizedFormat = StringUtils.hasText(storedFormat)
-                    ? storedFormat.trim().toLowerCase(Locale.ROOT)
-                    : MediaQuality.FLAC.getCode();
-            return normalizedFormat;
-        }
-        return mediaQuality.getCode();
-    }
-
-    private String resolvePublicResourceUrl(String resourcePath) {
-        if (!StringUtils.hasText(resourcePath)) {
-            return null;
-        }
-        String trimmedPath = resourcePath.trim();
-        if (trimmedPath.startsWith("http://") || trimmedPath.startsWith("https://")) {
-            return trimmedPath;
-        }
-        return fileServerProperties.publicUrl(trimmedPath);
-    }
+    /** 解析后的文件名三元组。 */
+    record ParsedName(String name, String artist, String format) {}
 }

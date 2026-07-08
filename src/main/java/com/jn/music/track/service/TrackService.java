@@ -4,6 +4,7 @@ import com.jn.music.common.PageResponse;
 import com.jn.music.track.dto.MediaUrlDTO;
 import com.jn.music.track.dto.TrackDTO;
 import com.jn.music.track.dto.TrackSummaryDTO;
+import com.jn.music.track.dto.TrackWithUrlDTO;
 import java.util.List;
 
 /**
@@ -35,4 +36,14 @@ public interface TrackService {
      * 获取可播放地址
      */
     MediaUrlDTO getMediaUrl(String trackId);
+
+    /**
+     * 获取带播放直链的歌曲列表，适用于APP直接播放。
+     */
+    PageResponse<TrackWithUrlDTO> listTracksWithUrl(Integer page, Integer pageSize);
+
+    /**
+     * 搜索带播放直链的歌曲，适用于APP直接播放。
+     */
+    PageResponse<TrackWithUrlDTO> searchTracksWithUrl(String keyword, Integer page, Integer pageSize);
 }
