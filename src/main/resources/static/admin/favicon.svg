@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="JNMusic">
+  <defs>
+    <radialGradient id="jn-disc" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2a1e1a"/>
+      <stop offset="100%" stop-color="#0f0a10"/>
+    </radialGradient>
+    <linearGradient id="jn-label" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f2b134"/>
+      <stop offset="100%" stop-color="#ffc457"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#jn-disc)"/>
+  <g fill="none" stroke="rgba(246,236,220,0.14)" stroke-width="0.8">
+    <circle cx="32" cy="32" r="26"/>
+    <circle cx="32" cy="32" r="23"/>
+    <circle cx="32" cy="32" r="20"/>
+    <circle cx="32" cy="32" r="17"/>
+  </g>
+  <circle cx="32" cy="32" r="12" fill="url(#jn-label)"/>
+  <g fill="#1a0f05">
+    <circle cx="28.5" cy="30" r="1.4"/>
+    <circle cx="35.5" cy="30" r="1.4"/>
+    <path d="M27.5 34.2 Q32 38 36.5 34.2" stroke="#1a0f05" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+  </g>
+  <circle cx="32" cy="32" r="1.6" fill="#100c11"/>
+  <circle cx="48" cy="18" r="2.4" fill="#f2b134"/>
+  <circle cx="52.5" cy="13.5" r="1.4" fill="#ffc457"/>
+</svg>
