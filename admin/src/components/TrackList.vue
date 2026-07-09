@@ -246,7 +246,7 @@ onBeforeUnmount(() => {
           :key="track.trackId"
           class="row"
           :class="{ active: player.currentTrack?.trackId === track.trackId }"
-          @dblclick="onRowActivate(track, idx)"
+          @click="onRowActivate(track, idx)"
         >
           <button class="row-play" @click.stop="onRowActivate(track, idx)">
             <span v-if="player.currentTrack?.trackId === track.trackId && player.isPlaying" class="wave">
