@@ -302,7 +302,7 @@ onBeforeUnmount(() => {
   position: relative;
   max-width: 860px;
   margin: 0 auto;
-  padding: 0 24px 40px;
+  padding: 0 24px calc(140px + env(safe-area-inset-bottom));
 }
 
 .library-head {
@@ -515,8 +515,6 @@ onBeforeUnmount(() => {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  height: calc(100vh - 200px);
-  padding-bottom: calc(120px + env(safe-area-inset-bottom));
 }
 .track-scroll::-webkit-scrollbar {
   display: none;
