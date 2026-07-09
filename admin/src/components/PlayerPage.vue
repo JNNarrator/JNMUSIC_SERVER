@@ -13,7 +13,7 @@ import {
 } from '@element-plus/icons-vue'
 import { usePlayerStore, type PlayMode } from '../stores/player'
 import { useUiStore } from '../stores/ui'
-import { parseLrc, findCurrentLine, fetchLyricsCached } from '../utils/lrc'
+import { parseLrc, findCurrentLine, getLineProgress, fetchLyricsCached } from '../utils/lrc'
 
 const player = usePlayerStore()
 const ui = useUiStore()
@@ -23,6 +23,7 @@ const rawLyrics = ref('')
 const lyricLines = computed(() => parseLrc(rawLyrics.value))
 const hasTimedLyrics = computed(() => lyricLines.value.length > 0)
 const currentLineIdx = ref(-1)
+const lineProgress = ref(0) // 当前行进度 0-100
 const lyricsLoading = ref(false)
 const lyricsError = ref<string | null>(null)
 
@@ -42,9 +43,7 @@ async function fetchLyrics(trackId: string) {
   try {
     const { raw, error } = await fetchLyricsCached(trackId)
     rawLyrics.value = raw
-    if (error) {
-      lyricsError.value = error
-    }
+    if (error) lyricsError.value = error
   } catch (e) {
     lyricsError.value = '歌词加载失败'
   } finally {
@@ -52,37 +51,33 @@ async function fetchLyrics(trackId: string) {
   }
 }
 
-// 重试获取歌词
 function retryFetchLyrics() {
-  if (player.currentTrack?.trackId) {
-    fetchLyrics(player.currentTrack.trackId)
-  }
+  if (player.currentTrack?.trackId) fetchLyrics(player.currentTrack.trackId)
 }
 
-// 监听切歌，重新获取歌词
 watch(
   () => player.currentTrack?.trackId,
-  (id) => {
-    if (id && ui.showPlayerPage) fetchLyrics(id)
-  },
+  (id) => { if (id && ui.showPlayerPage) fetchLyrics(id) },
   { immediate: true }
 )
 
-// 打开页面时如果已有当前歌曲，获取歌词
 watch(() => ui.showPlayerPage, (show) => {
-  if (show && player.currentTrack?.trackId) {
-    fetchLyrics(player.currentTrack.trackId)
-  }
+  if (show && player.currentTrack?.trackId) fetchLyrics(player.currentTrack.trackId)
 })
 
-// RAF 循环同步歌词
+// RAF 循环同步歌词 + 卡拉OK进度
 let rafId = 0
 function syncLyrics() {
-  if (lyricLines.value.length) {
-    const idx = findCurrentLine(lyricLines.value, player.currentTime)
-    if (idx !== currentLineIdx.value) {
+  const lines = lyricLines.value
+  if (lines.length) {
+    const idx = findCurrentLine(lines, player.currentTime)
+    const progress = getLineProgress(lines, idx, player.currentTime)
+    
+    if (idx !== currentLineIdx.value || Math.abs(progress - lineProgress.value) > 1) {
       currentLineIdx.value = idx
-      // 使用 scrollTo 替代 scrollIntoView，更平滑
+      lineProgress.value = progress
+      
+      // 滚动到当前行
       nextTick(() => {
         const container = lyricsContainer.value
         const el = lineRefs.value[idx]
@@ -91,20 +86,20 @@ function syncLyrics() {
           const elementTop = el.offsetTop
           const elementHeight = el.offsetHeight
           const scrollTo = elementTop - containerHeight / 2 + elementHeight / 2
-          container.scrollTo({ top: scrollTo, behavior: 'smooth' })
+          container.scrollTo({ top: scrollTo, behavior: idx !== currentLineIdx.value ? 'smooth' : 'auto' })
         }
       })
+    } else {
+      // 只更新进度，不滚动
+      lineProgress.value = progress
     }
   }
   rafId = requestAnimationFrame(syncLyrics)
 }
 
 watch(() => ui.showPlayerPage, (show) => {
-  if (show) {
-    rafId = requestAnimationFrame(syncLyrics)
-  } else {
-    cancelAnimationFrame(rafId)
-  }
+  if (show) rafId = requestAnimationFrame(syncLyrics)
+  else cancelAnimationFrame(rafId)
 }, { immediate: true })
 
 onUnmounted(() => cancelAnimationFrame(rafId))
@@ -123,7 +118,6 @@ const progress = computed({
   get: () => player.currentTime,
   set: (v: number) => player.seek(v),
 })
-
 const volumeValue = computed({
   get: () => Math.round(player.volume * 100),
   set: (v: number) => player.setVolume(v / 100),
@@ -144,37 +138,26 @@ let startY = 0
 let startTime = 0
 
 function onTouchStart(e: TouchEvent) {
-  // 仅在歌词区域顶部时才允许下滑
   const container = lyricsContainer.value
   if (container && container.scrollTop > 5) return
   startY = e.touches[0].clientY
   startTime = Date.now()
   dragging.value = true
 }
-
 function onTouchMove(e: TouchEvent) {
   if (!dragging.value) return
   const dy = e.touches[0].clientY - startY
-  if (dy > 0) {
-    dragOffset.value = dy
-  }
+  if (dy > 0) dragOffset.value = dy
 }
-
 function onTouchEnd() {
   if (!dragging.value) return
   const elapsed = Date.now() - startTime
   const velocity = dragOffset.value / Math.max(elapsed, 1)
-  if (dragOffset.value > 100 || velocity > 0.5) {
-    ui.closePlayerPage()
-  }
+  if (dragOffset.value > 100 || velocity > 0.5) ui.closePlayerPage()
   dragOffset.value = 0
   dragging.value = false
 }
-
-// 重置偏移（用于非触摸场景的关闭按钮）
-function handleClose() {
-  ui.closePlayerPage()
-}
+function handleClose() { ui.closePlayerPage() }
 </script>
 
 <template>
@@ -187,7 +170,6 @@ function handleClose() {
       @touchmove.passive="onTouchMove"
       @touchend.passive="onTouchEnd"
     >
-      <!-- 顶部：歌名歌手 -->
       <header class="pp-header">
         <div class="pp-track-info">
           <p class="pp-title">{{ player.currentTrack?.name || '未在播放' }}</p>
@@ -195,7 +177,7 @@ function handleClose() {
         </div>
       </header>
 
-      <!-- 中间：歌词区 -->
+      <!-- 歌词区 -->
       <div ref="lyricsContainer" class="pp-lyrics">
         <template v-if="lyricsLoading">
           <div class="pp-lyrics-status">
@@ -205,13 +187,7 @@ function handleClose() {
         <template v-else-if="lyricsError">
           <div class="pp-lyrics-error">
             <p class="pp-error-text">{{ lyricsError }}</p>
-            <el-button
-              class="pp-retry-btn"
-              type="primary"
-              round
-              :icon="Refresh"
-              @click="retryFetchLyrics"
-            >
+            <el-button class="pp-retry-btn" type="primary" round :icon="Refresh" @click="retryFetchLyrics">
               重新加载
             </el-button>
           </div>
@@ -224,6 +200,7 @@ function handleClose() {
             :ref="(el) => setLineRef(el as HTMLElement, i)"
             class="pp-line"
             :class="{ active: i === currentLineIdx, past: i < currentLineIdx }"
+            :style="i === currentLineIdx ? `--progress: ${lineProgress}%` : ''"
           >
             {{ line.text || '···' }}
           </p>
@@ -233,98 +210,53 @@ function handleClose() {
           <pre class="pp-lyrics-raw">{{ rawLyrics }}</pre>
         </template>
         <template v-else>
-          <div class="pp-lyrics-empty">
-            <p class="pp-lyrics-empty-text">暂无歌词</p>
-          </div>
+          <div class="pp-lyrics-empty"><p class="pp-lyrics-empty-text">暂无歌词</p></div>
         </template>
       </div>
 
-      <!-- 底部：控制区 -->
+      <!-- 底部控制区 -->
       <footer class="pp-controls">
-        <!-- 进度条 -->
         <div class="pp-progress-row">
           <span class="pp-time">{{ fmt(progress) }}</span>
-          <el-slider
-            v-model="progress"
-            class="pp-progress-slider"
-            :min="0"
-            :max="player.duration || 0"
-            :show-tooltip="false"
-            :disabled="!player.currentTrack"
-            @input="(v: number) => player.seek(v)"
-          />
+          <el-slider v-model="progress" class="pp-progress-slider" :min="0" :max="player.duration || 0" :show-tooltip="false" :disabled="!player.currentTrack" @input="(v: number) => player.seek(v)" />
           <span class="pp-time">{{ fmt(player.duration) }}</span>
         </div>
-
-        <!-- 主控区 -->
         <div class="pp-main-ctl">
-          <!-- 左侧：播放模式 -->
           <div class="pp-side pp-side-left">
             <el-tooltip :content="modeMeta.label" placement="top" :hide-after="800">
-              <button
-                class="pp-mode-btn"
-                :class="{ active: player.mode !== 'list' }"
-                @click="player.cyclePlayMode()"
-              >
+              <button class="pp-mode-btn" :class="{ active: player.mode !== 'list' }" @click="player.cyclePlayMode()">
                 <el-icon :size="20"><component :is="modeMeta.icon" /></el-icon>
                 <span v-if="player.mode === 'one'" class="pp-mode-badge">1</span>
               </button>
             </el-tooltip>
           </div>
-
-          <!-- 中心：播放按钮组 -->
           <div class="pp-center-btns">
             <el-tooltip content="上一曲" placement="top" :hide-after="800">
-              <button
-                class="pp-skip-btn"
-                :disabled="!player.queue.length"
-                @click.stop="player.prev()"
-              >
+              <button class="pp-skip-btn" :disabled="!player.queue.length" @click.stop="player.prev()">
                 <el-icon :size="24"><DArrowLeft /></el-icon>
               </button>
             </el-tooltip>
-
-            <button
-              class="pp-play-btn"
-              :class="{ playing: player.isPlaying }"
-              :disabled="!player.currentTrack"
-              @click.stop="player.toggle()"
-            >
+            <button class="pp-play-btn" :class="{ playing: player.isPlaying }" :disabled="!player.currentTrack" @click.stop="player.toggle()">
               <span class="pp-play-ring" />
               <el-icon :size="28" class="pp-play-icon">
-                <VideoPause v-if="player.isPlaying" />
-                <VideoPlay v-else />
+                <VideoPause v-if="player.isPlaying" /><VideoPlay v-else />
               </el-icon>
             </button>
-
             <el-tooltip content="下一曲" placement="top" :hide-after="800">
-              <button
-                class="pp-skip-btn"
-                :disabled="!player.queue.length"
-                @click.stop="player.next(true)"
-              >
+              <button class="pp-skip-btn" :disabled="!player.queue.length" @click.stop="player.next(true)">
                 <el-icon :size="24"><DArrowRight /></el-icon>
               </button>
             </el-tooltip>
           </div>
-
-          <!-- 右侧：音量（桌面端） -->
           <div class="pp-side pp-side-right">
             <div class="pp-volume">
               <el-icon :size="18" class="pp-vol-icon"><Mute /></el-icon>
-              <el-slider
-                v-model="volumeValue"
-                class="pp-vol-slider"
-                :min="0"
-                :max="100"
-                :show-tooltip="false"
-              />
+              <el-slider v-model="volumeValue" class="pp-vol-slider" :min="0" :max="100" :show-tooltip="false" />
             </div>
           </div>
         </div>
       </footer>
 
-      <!-- 收起按钮：右下角，拇指易达区 -->
       <button class="pp-collapse-btn" aria-label="收起" @click="handleClose">
         <el-icon :size="18"><Close /></el-icon>
       </button>
@@ -338,10 +270,7 @@ function handleClose() {
 .player-page-leave-active {
   transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease;
 }
-.player-page-enter-from {
-  transform: translateY(100%);
-  opacity: 0;
-}
+.player-page-enter-from,
 .player-page-leave-to {
   transform: translateY(100%);
   opacity: 0;
@@ -349,352 +278,176 @@ function handleClose() {
 
 /* 全屏页 */
 .player-page {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  background: var(--jn-bg);
-  color: var(--jn-ink);
-  overflow: hidden;
-  will-change: transform;
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; flex-direction: column;
+  background: var(--jn-bg); color: var(--jn-ink);
+  overflow: hidden; will-change: transform;
 }
 
 /* 顶部 header */
 .pp-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px 24px 8px;
-  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px 24px 8px; flex-shrink: 0;
 }
 .pp-collapse-btn {
-  position: fixed;
-  top: calc(16px + env(safe-area-inset-top));
-  right: 24px;
-  z-index: 51;
-  width: 44px;
-  height: 44px;
-  border: 1.5px solid var(--jn-hair-strong);
-  border-radius: 50%;
-  background: var(--jn-bar-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  color: var(--jn-ink-dim);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: fixed; top: calc(16px + env(safe-area-inset-top)); right: 24px; z-index: 51;
+  width: 44px; height: 44px; border: 1.5px solid var(--jn-hair-strong); border-radius: 50%;
+  background: var(--jn-bar-bg); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  color: var(--jn-ink-dim); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   transition: color 0.2s, border-color 0.2s, transform 0.15s, background 0.2s;
 }
-.pp-collapse-btn:hover {
-  color: var(--jn-ink-strong);
-  border-color: var(--jn-ink-dim);
-  background: var(--jn-bg-elev);
-}
-.pp-collapse-btn:active {
-  transform: scale(0.9);
-}
-.pp-track-info {
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-}
+.pp-collapse-btn:hover { color: var(--jn-ink-strong); border-color: var(--jn-ink-dim); background: var(--jn-bg-elev); }
+.pp-collapse-btn:active { transform: scale(0.9); }
+.pp-track-info { flex: 1; min-width: 0; text-align: center; }
 .pp-title {
-  margin: 0;
-  font-family: 'Fraunces', serif;
-  font-weight: 500;
-  font-size: 18px;
-  color: var(--jn-ink-strong);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin: 0; font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px;
+  color: var(--jn-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .pp-artist {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--jn-ink-dim);
-  font-family: 'IBM Plex Mono', monospace;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin: 4px 0 0; font-size: 13px; color: var(--jn-ink-dim);
+  font-family: 'IBM Plex Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-
 
 /* 歌词区 */
 .pp-lyrics {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 24px;
-  scroll-behavior: smooth;
+  flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0 24px; scroll-behavior: smooth;
 }
 .pp-lyrics::-webkit-scrollbar { display: none; }
+.pp-lyrics-pad-top, .pp-lyrics-pad-bottom { flex-shrink: 0; height: 40vh; }
 
-.pp-lyrics-pad-top,
-.pp-lyrics-pad-bottom {
-  flex-shrink: 0;
-  height: 40vh;
-}
-
+/* 歌词行 - 卡拉OK效果 */
 .pp-line {
-  margin: 0;
-  padding: 8px 16px;
-  font-size: 15px;
-  line-height: 1.8;
+  margin: 0; padding: 8px 16px;
+  font-size: 15px; line-height: 1.8;
+  text-align: center; max-width: 100%; word-break: break-word;
+  /* 基础样式：未唱状态 */
   color: var(--jn-ink-muted);
-  text-align: center;
-  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-  max-width: 100%;
-  word-break: break-word;
-  opacity: 0.6;
+  opacity: 0.5;
   transform: scale(0.95);
+  transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1), transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
 .pp-line.past {
-  opacity: 0.3;
-  filter: blur(0.5px);
+  opacity: 0.25;
+  filter: blur(0.3px);
   transform: scale(0.92);
+  color: var(--jn-ink-dim);
 }
+
+/* 当前播放行 - 卡拉OK渐变 */
 .pp-line.active {
   font-size: 20px;
-  color: var(--jn-accent);
-  text-shadow: 0 0 20px var(--jn-glow), 0 0 40px rgba(242, 177, 52, 0.15);
-  font-weight: 500;
+  font-weight: 600;
   opacity: 1;
-  transform: scale(1.08);
+  transform: scale(1.06);
+  /* 卡拉OK渐变：左侧已唱(accent)，右侧未唱(muted) */
+  background: linear-gradient(
+    90deg,
+    var(--jn-accent) 0%,
+    var(--jn-accent) var(--progress, 0%),
+    var(--jn-ink-muted) var(--progress, 0%),
+    var(--jn-ink-muted) 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* 文字阴影用 filter 实现，因为 text-fill-color: transparent 会吃掉 text-shadow */
+  filter: drop-shadow(0 0 12px rgba(242, 177, 52, 0.3));
+  transition: filter 0.3s, opacity 0.4s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.pp-lyrics-status {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 40% 40px 0;
-  width: 100%;
-}
+/* 歌词加载骨架 */
+.pp-lyrics-status { display: flex; flex-direction: column; gap: 14px; padding: 40% 40px 0; width: 100%; }
 .pp-skel {
-  height: 16px;
-  border-radius: 4px;
+  height: 16px; border-radius: 4px;
   background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
-  background-size: 200% 100%;
-  animation: skel 1.4s linear infinite;
+  background-size: 200% 100%; animation: skel 1.4s linear infinite;
 }
-@keyframes skel {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
+@keyframes skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-.pp-lyrics-error {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-}
+/* 错误状态 */
+.pp-lyrics-error { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+.pp-error-text { font-size: 15px; color: var(--jn-danger); font-family: 'IBM Plex Mono', monospace; }
+.pp-retry-btn { color: var(--jn-accent-ink) !important; font-weight: 600 !important; box-shadow: 0 8px 24px var(--jn-glow); }
 
-.pp-error-text {
-  font-size: 15px;
-  color: var(--jn-danger);
-  font-family: 'IBM Plex Mono', monospace;
-}
-
-.pp-retry-btn {
-  color: var(--jn-accent-ink) !important;
-  font-weight: 600 !important;
-  box-shadow: 0 8px 24px var(--jn-glow);
-}
-
+/* 纯文本歌词 */
 .pp-lyrics-raw {
-  margin: 20% 0 0;
-  white-space: pre-wrap;
-  word-break: break-all;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 13px;
-  line-height: 1.8;
-  color: var(--jn-ink-dim);
-  text-align: left;
-  max-width: 500px;
+  margin: 20% 0 0; white-space: pre-wrap; word-break: break-all;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; line-height: 1.8;
+  color: var(--jn-ink-dim); text-align: left; max-width: 500px;
 }
-
-.pp-lyrics-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pp-lyrics-empty-text {
-  font-size: 15px;
-  color: var(--jn-ink-muted);
-  font-family: 'IBM Plex Mono', monospace;
-}
+.pp-lyrics-empty { flex: 1; display: flex; align-items: center; justify-content: center; }
+.pp-lyrics-empty-text { font-size: 15px; color: var(--jn-ink-muted); font-family: 'IBM Plex Mono', monospace; }
 
 /* 底部控制区 */
 .pp-controls {
-  flex-shrink: 0;
-  padding: 16px 28px calc(24px + env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  align-items: center;
+  flex-shrink: 0; padding: 16px 28px calc(24px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 14px; align-items: center;
   background: linear-gradient(to top, rgba(16, 12, 17, 0.6) 0%, transparent 100%);
 }
-
-/* 进度条行 */
 .pp-progress-row {
-  display: grid;
-  grid-template-columns: 44px 1fr 44px;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  max-width: 520px;
+  display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 14px;
+  width: 100%; max-width: 520px;
 }
-.pp-time {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: var(--jn-ink-dim);
-  text-align: center;
-  letter-spacing: 0.03em;
-}
+.pp-time { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--jn-ink-dim); text-align: center; letter-spacing: 0.03em; }
 .pp-progress-slider { width: 100%; }
-
-/* 主控区：三栏布局 — 左模式 / 中心播放 / 右音量 */
-.pp-main-ctl {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 520px;
-  gap: 0;
-}
-
-.pp-side {
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
+.pp-main-ctl { display: flex; align-items: center; justify-content: center; width: 100%; max-width: 520px; gap: 0; }
+.pp-side { flex: 1; display: flex; align-items: center; }
 .pp-side-left { justify-content: flex-start; }
 .pp-side-right { justify-content: flex-end; }
 
 /* 播放模式按钮 */
 .pp-mode-btn {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--jn-ink-dim);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative; width: 40px; height: 40px; border: none; border-radius: 50%;
+  background: transparent; color: var(--jn-ink-dim); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   transition: color 0.2s, background 0.2s;
 }
-.pp-mode-btn:hover {
-  color: var(--jn-ink-strong);
-  background: var(--jn-row-hover);
-}
+.pp-mode-btn:hover { color: var(--jn-ink-strong); background: var(--jn-row-hover); }
 .pp-mode-btn.active { color: var(--jn-accent); }
 .pp-mode-badge {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  font-size: 8px;
-  font-family: 'IBM Plex Mono', monospace;
-  color: var(--jn-accent-ink);
-  background: var(--jn-accent);
-  border-radius: 4px;
-  padding: 0 3px;
-  line-height: 1.4;
+  position: absolute; top: 3px; right: 3px; font-size: 8px;
+  font-family: 'IBM Plex Mono', monospace; color: var(--jn-accent-ink);
+  background: var(--jn-accent); border-radius: 4px; padding: 0 3px; line-height: 1.4;
 }
 
 /* 中心播放按钮组 */
-.pp-center-btns {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-shrink: 0;
-}
-
-/* 上一曲 / 下一曲 */
+.pp-center-btns { display: flex; align-items: center; gap: 20px; flex-shrink: 0; }
 .pp-skip-btn {
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--jn-ink-dim);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 44px; height: 44px; border: none; border-radius: 50%;
+  background: transparent; color: var(--jn-ink-dim); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   transition: color 0.2s, transform 0.15s, background 0.2s;
 }
-.pp-skip-btn:hover:not(:disabled) {
-  color: var(--jn-ink-strong);
-  background: var(--jn-row-hover);
-  transform: scale(1.06);
-}
+.pp-skip-btn:hover:not(:disabled) { color: var(--jn-ink-strong); background: var(--jn-row-hover); transform: scale(1.06); }
 .pp-skip-btn:active:not(:disabled) { transform: scale(0.95); }
 .pp-skip-btn:disabled { opacity: 0.3; cursor: default; }
 
-/* 播放 / 暂停 */
+/* 播放/暂停 */
 .pp-play-btn {
-  position: relative;
-  width: 64px;
-  height: 64px;
-  border: none;
-  border-radius: 50%;
-  background: var(--jn-accent);
-  color: var(--jn-accent-ink);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative; width: 64px; height: 64px; border: none; border-radius: 50%;
+  background: var(--jn-accent); color: var(--jn-accent-ink); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s;
   box-shadow: 0 8px 32px var(--jn-glow);
 }
-.pp-play-btn:hover:not(:disabled) {
-  transform: scale(1.06);
-  box-shadow: 0 12px 40px var(--jn-glow), 0 0 0 3px var(--jn-accent-soft);
-}
+.pp-play-btn:hover:not(:disabled) { transform: scale(1.06); box-shadow: 0 12px 40px var(--jn-glow), 0 0 0 3px var(--jn-accent-soft); }
 .pp-play-btn:active:not(:disabled) { transform: scale(0.96); }
 .pp-play-btn:disabled { opacity: 0.4; cursor: default; }
-
-/* 呼吸光环 */
 .pp-play-ring {
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 1.5px solid var(--jn-accent);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s;
+  position: absolute; inset: -4px; border-radius: 50%;
+  border: 1.5px solid var(--jn-accent); opacity: 0; pointer-events: none; transition: opacity 0.3s;
 }
-.pp-play-btn.playing .pp-play-ring {
-  opacity: 0.35;
-  animation: pp-ring-pulse 2.4s ease-in-out infinite;
-}
-@keyframes pp-ring-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.35; }
-  50% { transform: scale(1.12); opacity: 0.12; }
-}
-
-.pp-play-icon {
-  position: relative;
-  z-index: 1;
-}
+.pp-play-btn.playing .pp-play-ring { opacity: 0.35; animation: pp-ring-pulse 2.4s ease-in-out infinite; }
+@keyframes pp-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.35; } 50% { transform: scale(1.12); opacity: 0.12; } }
+.pp-play-icon { position: relative; z-index: 1; }
 
 /* 音量 */
-.pp-volume {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.pp-volume { display: flex; align-items: center; gap: 8px; }
 .pp-vol-icon { color: var(--jn-ink-dim); }
 .pp-vol-slider { width: 90px; }
 

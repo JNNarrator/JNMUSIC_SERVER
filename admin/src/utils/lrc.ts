@@ -41,6 +41,22 @@ export function findCurrentLine(lines: LyricLine[], currentTime: number): number
   return Math.max(0, lo - 1)
 }
 
+/**
+ * 计算当前行的播放进度百分比 (0-100)。
+ * 用于卡拉OK渐变效果：已唱部分用accent色，未唱部分用muted色。
+ */
+export function getLineProgress(lines: LyricLine[], lineIndex: number, currentTime: number): number {
+  if (lineIndex < 0 || lineIndex >= lines.length) return 0
+  
+  const lineStart = lines[lineIndex].time
+  const lineEnd = lineIndex + 1 < lines.length ? lines[lineIndex + 1].time : lineStart + 5
+  
+  if (currentTime < lineStart) return 0
+  if (currentTime >= lineEnd) return 100
+  
+  return Math.min(100, ((currentTime - lineStart) / (lineEnd - lineStart)) * 100)
+}
+
 // -- 歌词缓存（内存级，同一首歌只请求一次） --
 const lyricsCache = new Map<string, string>()
 
