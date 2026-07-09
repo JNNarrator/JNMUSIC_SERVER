@@ -41,8 +41,8 @@ function retryFetchLyrics() {
   if (player.currentTrack?.trackId) fetchLyrics(player.currentTrack.trackId)
 }
 
-watch(() => player.currentTrack?.trackId, (id) => { if (id && ui.showPlayerPage) fetchLyrics(id) }, { immediate: true })
-watch(() => ui.showPlayerPage, (show) => { if (show && player.currentTrack?.trackId) fetchLyrics(player.currentTrack.trackId) })
+// 播放歌曲时就加载歌词（不依赖全屏页面是否打开）
+watch(() => player.currentTrack?.trackId, (id) => { if (id) fetchLyrics(id) }, { immediate: true })
 
 // 更新浏览器标题 - 显示当前歌词
 function updateTitle() {
@@ -81,22 +81,23 @@ function syncLyrics() {
     const idx = findCurrentLine(lines, player.currentTime)
     
     if (idx !== currentLineIdx.value) {
-      // 行切换时立即更新并滚动
       currentLineIdx.value = idx
       lineProgress.value = getLineProgress(lines, idx, player.currentTime)
       lastProgressUpdate = now
       
-      nextTick(() => {
-        const container = lyricsContainer.value
-        const el = lineRefs.value[idx]
-        if (container && el) {
-          const containerHeight = container.clientHeight
-          const scrollTo = el.offsetTop - containerHeight / 2 + el.offsetHeight / 2
-          container.scrollTo({ top: scrollTo, behavior: 'smooth' })
-        }
-      })
+      // 只在全屏页面打开时滚动歌词
+      if (ui.showPlayerPage) {
+        nextTick(() => {
+          const container = lyricsContainer.value
+          const el = lineRefs.value[idx]
+          if (container && el) {
+            const containerHeight = container.clientHeight
+            const scrollTo = el.offsetTop - containerHeight / 2 + el.offsetHeight / 2
+            container.scrollTo({ top: scrollTo, behavior: 'smooth' })
+          }
+        })
+      }
     } else if (now - lastProgressUpdate > PROGRESS_THROTTLE) {
-      // 同一行内，节流更新进度
       lineProgress.value = getLineProgress(lines, idx, player.currentTime)
       lastProgressUpdate = now
     }
@@ -104,9 +105,13 @@ function syncLyrics() {
   rafId = requestAnimationFrame(syncLyrics)
 }
 
-watch(() => ui.showPlayerPage, (show) => {
-  if (show) rafId = requestAnimationFrame(syncLyrics)
-  else cancelAnimationFrame(rafId)
+// 播放时就运行同步（用于更新标题），不依赖全屏页面
+watch(() => player.isPlaying, (playing) => {
+  if (playing) {
+    rafId = requestAnimationFrame(syncLyrics)
+  } else {
+    cancelAnimationFrame(rafId)
+  }
 }, { immediate: true })
 
 onUnmounted(() => cancelAnimationFrame(rafId))
