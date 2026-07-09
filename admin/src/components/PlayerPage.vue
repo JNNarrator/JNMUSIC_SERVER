@@ -24,6 +24,7 @@ const lyricLines = computed(() => parseLrc(rawLyrics.value))
 const hasTimedLyrics = computed(() => lyricLines.value.length > 0)
 const currentLineIdx = ref(-1)
 const lyricsLoading = ref(false)
+const lyricsError = ref<string | null>(null)
 
 // 歌词容器引用
 const lyricsContainer = ref<HTMLElement | null>(null)
@@ -37,9 +38,25 @@ function setLineRef(el: HTMLElement | null, idx: number) {
 async function fetchLyrics(trackId: string) {
   if (!trackId) return
   lyricsLoading.value = true
-  const { raw } = await fetchLyricsCached(trackId)
-  rawLyrics.value = raw
-  lyricsLoading.value = false
+  lyricsError.value = null
+  try {
+    const { raw, error } = await fetchLyricsCached(trackId)
+    rawLyrics.value = raw
+    if (error) {
+      lyricsError.value = error
+    }
+  } catch (e) {
+    lyricsError.value = '歌词加载失败'
+  } finally {
+    lyricsLoading.value = false
+  }
+}
+
+// 重试获取歌词
+function retryFetchLyrics() {
+  if (player.currentTrack?.trackId) {
+    fetchLyrics(player.currentTrack.trackId)
+  }
 }
 
 // 监听切歌，重新获取歌词
@@ -65,11 +82,16 @@ function syncLyrics() {
     const idx = findCurrentLine(lyricLines.value, player.currentTime)
     if (idx !== currentLineIdx.value) {
       currentLineIdx.value = idx
-      // 滚动到当前行
+      // 使用 scrollTo 替代 scrollIntoView，更平滑
       nextTick(() => {
+        const container = lyricsContainer.value
         const el = lineRefs.value[idx]
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        if (container && el) {
+          const containerHeight = container.clientHeight
+          const elementTop = el.offsetTop
+          const elementHeight = el.offsetHeight
+          const scrollTo = elementTop - containerHeight / 2 + elementHeight / 2
+          container.scrollTo({ top: scrollTo, behavior: 'smooth' })
         }
       })
     }
@@ -180,6 +202,20 @@ function handleClose() {
             <div v-for="n in 5" :key="n" class="pp-skel" />
           </div>
         </template>
+        <template v-else-if="lyricsError">
+          <div class="pp-lyrics-error">
+            <p class="pp-error-text">{{ lyricsError }}</p>
+            <el-button
+              class="pp-retry-btn"
+              type="primary"
+              round
+              :icon="Refresh"
+              @click="retryFetchLyrics"
+            >
+              重新加载
+            </el-button>
+          </div>
+        </template>
         <template v-else-if="hasTimedLyrics">
           <div class="pp-lyrics-pad-top" />
           <p
@@ -207,29 +243,28 @@ function handleClose() {
       <footer class="pp-controls">
         <!-- 进度条 -->
         <div class="pp-progress-row">
-          <span class="pp-time">{{ fmt(player.currentTime) }}</span>
+          <span class="pp-time">{{ fmt(progress) }}</span>
           <el-slider
             v-model="progress"
             class="pp-progress-slider"
             :min="0"
-            :max="Math.max(0.1, player.duration)"
-            :step="0.1"
+            :max="player.duration || 0"
             :show-tooltip="false"
             :disabled="!player.currentTrack"
+            @input="(v: number) => player.seek(v)"
           />
           <span class="pp-time">{{ fmt(player.duration) }}</span>
         </div>
 
-        <!-- 主控区：模式 / 上一曲 / 播放·暂停 / 下一曲 / 音量 -->
+        <!-- 主控区 -->
         <div class="pp-main-ctl">
           <!-- 左侧：播放模式 -->
           <div class="pp-side pp-side-left">
             <el-tooltip :content="modeMeta.label" placement="top" :hide-after="800">
               <button
                 class="pp-mode-btn"
-                :class="{ active: true, ['mode-' + player.mode]: true }"
-                :aria-label="'播放模式：' + modeMeta.label"
-                @click.stop="player.cyclePlayMode"
+                :class="{ active: player.mode !== 'list' }"
+                @click="player.cyclePlayMode()"
               >
                 <el-icon :size="20"><component :is="modeMeta.icon" /></el-icon>
                 <span v-if="player.mode === 'one'" class="pp-mode-badge">1</span>
@@ -237,14 +272,13 @@ function handleClose() {
             </el-tooltip>
           </div>
 
-          <!-- 中心：上一曲 / 播放·暂停 / 下一曲 -->
+          <!-- 中心：播放按钮组 -->
           <div class="pp-center-btns">
             <el-tooltip content="上一曲" placement="top" :hide-after="800">
               <button
                 class="pp-skip-btn"
                 :disabled="!player.queue.length"
-                aria-label="上一曲"
-                @click.stop="player.prev"
+                @click.stop="player.prev()"
               >
                 <el-icon :size="24"><DArrowLeft /></el-icon>
               </button>
@@ -254,8 +288,7 @@ function handleClose() {
               class="pp-play-btn"
               :class="{ playing: player.isPlaying }"
               :disabled="!player.currentTrack"
-              aria-label="播放或暂停"
-              @click.stop="player.toggle"
+              @click.stop="player.toggle()"
             >
               <span class="pp-play-ring" />
               <el-icon :size="28" class="pp-play-icon">
@@ -268,7 +301,6 @@ function handleClose() {
               <button
                 class="pp-skip-btn"
                 :disabled="!player.queue.length"
-                aria-label="下一曲"
                 @click.stop="player.next(true)"
               >
                 <el-icon :size="24"><DArrowRight /></el-icon>
@@ -286,7 +318,6 @@ function handleClose() {
                 :min="0"
                 :max="100"
                 :show-tooltip="false"
-                aria-label="音量"
               />
             </div>
           </div>
@@ -400,6 +431,7 @@ function handleClose() {
   flex-direction: column;
   align-items: center;
   padding: 0 24px;
+  scroll-behavior: smooth;
 }
 .pp-lyrics::-webkit-scrollbar { display: none; }
 
@@ -416,18 +448,24 @@ function handleClose() {
   line-height: 1.8;
   color: var(--jn-ink-muted);
   text-align: center;
-  transition: color 0.3s ease, font-size 0.3s ease, opacity 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   max-width: 100%;
   word-break: break-word;
+  opacity: 0.6;
+  transform: scale(0.95);
 }
 .pp-line.past {
-  opacity: 0.35;
+  opacity: 0.3;
+  filter: blur(0.5px);
+  transform: scale(0.92);
 }
 .pp-line.active {
   font-size: 20px;
   color: var(--jn-accent);
   text-shadow: 0 0 20px var(--jn-glow), 0 0 40px rgba(242, 177, 52, 0.15);
   font-weight: 500;
+  opacity: 1;
+  transform: scale(1.08);
 }
 
 .pp-lyrics-status {
@@ -447,6 +485,27 @@ function handleClose() {
 @keyframes skel {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+.pp-lyrics-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.pp-error-text {
+  font-size: 15px;
+  color: var(--jn-danger);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.pp-retry-btn {
+  color: var(--jn-accent-ink) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 8px 24px var(--jn-glow);
 }
 
 .pp-lyrics-raw {

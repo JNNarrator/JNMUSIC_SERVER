@@ -483,7 +483,8 @@ public class LanzouApiClient {
             if (!folId.isEmpty()) {
                 // 这是文件夹
                 String name = str(o, "name");
-                result.add(new LanzouFolder(folId, name));
+                String desc = str(o, "folder_des");
+                result.add(new LanzouFolder(folId, name, desc));
             }
         }
         return result;

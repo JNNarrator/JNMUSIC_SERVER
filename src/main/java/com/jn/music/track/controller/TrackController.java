@@ -13,6 +13,7 @@ import com.jn.music.track.dto.TrackWithUrlDTO;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -76,6 +77,21 @@ public class TrackController {
     public ApiResponse<MediaUrlDTO> getMediaUrl(
             @PathVariable("trackId") String trackId) {
         return ApiResponse.success(trackService.getMediaUrl(trackId));
+    }
+
+    /**
+     * 批量获取播放直链
+     */
+    @GetMapping("/media-urls")
+    public ApiResponse<Map<String, MediaUrlDTO>> getMediaUrls(@RequestParam("ids") List<String> ids) {
+        List<String> normalizedIds = normalizeTrackIds(ids);
+        if (normalizedIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "ids 不能为空");
+        }
+        if (normalizedIds.size() > TrackBatchRequest.MAX_TRACK_IDS) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "ids 最多支持 50 个 trackId");
+        }
+        return ApiResponse.success(trackService.getMediaUrls(normalizedIds));
     }
 
     @GetMapping("/{trackId}/lyrics")

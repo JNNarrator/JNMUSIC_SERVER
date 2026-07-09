@@ -12,6 +12,7 @@ const page = ref(1)
 const pageSize = 20
 const keyword = ref('')
 const loading = ref(false)
+const error = ref<string | null>(null)
 const lyricsTrackId = ref('')
 const lyricsTrackName = ref('')
 const showLyrics = ref(false)
@@ -30,6 +31,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize))
 
 async function fetchTracks() {
   loading.value = true
+  error.value = null
   try {
     const q = keyword.value.trim()
     const url = q
@@ -38,7 +40,7 @@ async function fetchTracks() {
     const res = await fetch(url)
     const payload = await res.json()
     if (!payload.success) {
-      ElMessage.error(payload.error?.message || '加载失败')
+      error.value = payload.error?.message || '加载失败'
       tracks.value = []
       total.value = 0
       return
@@ -46,12 +48,17 @@ async function fetchTracks() {
     tracks.value = payload.data.items as Track[]
     total.value = payload.data.total ?? tracks.value.length
   } catch (e) {
-    ElMessage.error('网络异常，请稍后重试')
+    error.value = '网络异常，请检查网络后重试'
     tracks.value = []
     total.value = 0
   } finally {
     loading.value = false
   }
+}
+
+function retryFetch() {
+  error.value = null
+  fetchTracks()
 }
 
 function playAll(startIndex = 0) {
@@ -186,72 +193,81 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <div ref="scrollRef" class="track-scroll">
-      <div
-        class="pull-indicator"
-        :class="{ active: pullDistance >= PULL_THRESHOLD, refreshing }"
-        :style="{ height: pullDistance + 'px', opacity: Math.min(pullDistance / 60, 1) }"
+    <!-- 下拉指示器 -->
+    <div
+      class="pull-indicator"
+      :class="{ active: pullDistance >= PULL_THRESHOLD, refreshing }"
+      :style="{ height: `${pullDistance}px` }"
+    >
+      <el-icon :size="16"><Refresh /></el-icon>
+      <span v-if="refreshing">刷新中…</span>
+      <span v-else-if="pullDistance >= PULL_THRESHOLD">松手刷新</span>
+      <span v-else>下拉刷新</span>
+    </div>
+
+    <!-- 骨架屏 -->
+    <div v-if="loading && !refreshing" class="skeleton">
+      <div v-for="n in pageSize" :key="n" class="row-skel">
+        <div class="skel-play" />
+        <div class="skel-main">
+          <div class="skel-name" />
+          <div class="skel-artist" />
+        </div>
+        <div class="skel-meta">
+          <div class="skel-tag" />
+        </div>
+      </div>
+    </div>
+
+    <!-- 错误状态 -->
+    <div v-else-if="error" class="error-state">
+      <p class="error-text">{{ error }}</p>
+      <el-button
+        class="retry-btn"
+        type="primary"
+        round
+        :icon="Refresh"
+        @click="retryFetch"
       >
-        <el-icon
-          :size="20"
-          :style="{ transform: refreshing ? '' : `rotate(${pullDistance * 3}deg)` }"
-        >
-          <Refresh />
-        </el-icon>
-        <span v-if="refreshing">刷新中…</span>
-        <span v-else-if="pullDistance >= PULL_THRESHOLD">松手刷新</span>
-        <span v-else>下拉刷新</span>
-      </div>
+        重新加载
+      </el-button>
+    </div>
 
-      <div v-if="loading && !refreshing" class="skeleton">
-        <div v-for="n in 6" :key="n" class="row-skel" />
-      </div>
+    <!-- 空状态 -->
+    <div v-else-if="!tracks.length && !loading" class="empty">
+      <p>暂无曲目</p>
+    </div>
 
-      <el-empty
-        v-else-if="!tracks.length"
-        description="书架空空，先添几张唱片吧"
-        :image-size="80"
-      />
-
-      <ol v-else class="track-rows" role="list">
+    <!-- 歌曲列表 -->
+    <div v-else ref="scrollRef" class="track-scroll">
+      <ol class="track-rows">
         <li
           v-for="(track, idx) in tracks"
           :key="track.trackId"
           class="row"
           :class="{ active: player.currentTrack?.trackId === track.trackId }"
-          role="button"
-          tabindex="0"
-          
-          :aria-label="`播放 ${track.name}`"
-          @click="onRowActivate(track, idx)"
-          @keydown.enter.prevent="onRowActivate(track, idx)"
-          @keydown.space.prevent="onRowActivate(track, idx)"
+          @dblclick="onRowActivate(track, idx)"
         >
-          <div class="row-play" aria-hidden="true">
-            <span
-              v-if="player.currentTrack?.trackId === track.trackId && player.isPlaying"
-              class="wave"
-            >
+          <button class="row-play" @click.stop="onRowActivate(track, idx)">
+            <span v-if="player.currentTrack?.trackId === track.trackId && player.isPlaying" class="wave">
               <i /><i /><i /><i />
             </span>
-            <template v-else>
-              <span class="num">{{ (page - 1) * pageSize + idx + 1 }}</span>
-              <span class="hover-play">
-                <el-icon :size="18"><VideoPlay /></el-icon>
-              </span>
-            </template>
-          </div>
+            <span v-else class="num">{{ (page - 1) * pageSize + idx + 1 }}</span>
+            <span class="hover-play"><el-icon><VideoPlay /></el-icon></span>
+          </button>
+
           <div class="row-main">
             <p class="row-name">{{ track.name }}</p>
             <p class="row-artist">{{ track.artist || '未知艺人' }}</p>
           </div>
+
           <div class="row-meta">
             <span v-if="track.format" class="tag">{{ track.format.toUpperCase() }}</span>
             <span v-if="track.fileSize" class="size">{{ formatSize(track.fileSize) }}</span>
             <button
               v-if="track.hasLyric"
               class="lyrics-btn"
-              title="歌词"
+              title="查看歌词"
               @click.stop="openLyrics(track.trackId, track.name)"
             >
               <el-icon :size="14"><Document /></el-icon>
@@ -260,93 +276,44 @@ onBeforeUnmount(() => {
         </li>
       </ol>
 
-      <footer v-if="total > pageSize" class="pager">
+      <!-- 分页 -->
+      <div v-if="totalPages > 1" class="pager">
         <el-pagination
-          :current-page="page"
-          :page-size="pageSize"
-          :total="total"
-          :page-count="totalPages"
           layout="prev, pager, next"
-          background
-          hide-on-single-page
+          :total="total"
+          :page-size="pageSize"
+          :current-page="page"
           @current-change="onPageChange"
         />
-      </footer>
+      </div>
     </div>
-    <LyricsPanel v-model:open="showLyrics" :track-id="lyricsTrackId" :track-name="lyricsTrackName" />
+
+    <!-- 歌词面板 -->
+    <LyricsPanel
+      v-model:visible="showLyrics"
+      :track-id="lyricsTrackId"
+      :track-name="lyricsTrackName"
+    />
   </section>
 </template>
 
 <style scoped>
 .library {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
+  position: relative;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 24px 40px;
 }
 
 .library-head {
-  flex-shrink: 0;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  flex-wrap: wrap;
-  padding-bottom: 22px;
+  padding: 60px 0 32px;
 }
 
-.track-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  /* 隐藏滚动条 */
-  scrollbar-width: none;          /* Firefox */
-  -ms-overflow-style: none;       /* IE/Edge */
-}
-.track-scroll::-webkit-scrollbar {  /* Chrome/Safari */
-  display: none;
-}
-
-.pull-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  overflow: hidden;
-  color: var(--jn-ink-dim);
-  font-size: 13px;
-  transition: height 0.25s ease;
-}
-.pull-indicator.active { color: var(--jn-accent); }
-.pull-indicator.refreshing :deep(.el-icon) { animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.eyebrow {
-  margin: 0 0 8px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: var(--jn-ink-dim);
-  text-transform: uppercase;
-}
-
-.head-title h2 {
-  margin: 0;
-  font-family: 'Fraunces', serif;
-  font-weight: 500;
-  font-style: italic;
-  font-size: clamp(30px, 4.2vw, 52px);
-  line-height: 1.02;
-  color: var(--jn-ink-strong);
-}
-
-.lead {
-  margin: 12px 0 0;
-  max-width: 42ch;
-  color: var(--jn-ink-dim);
-  font-size: 14.5px;
-  line-height: 1.55;
-}
-
+.head-title { flex: 1; min-width: 0; }
 .head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 .search-input { width: 240px; }
@@ -358,15 +325,79 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 30px var(--jn-glow);
 }
 
-.skeleton { display: grid; gap: 12px; }
+.skeleton { display: grid; gap: 0; border-top: 1px solid var(--jn-hair); }
 .row-skel {
-  height: 58px;
-  border-radius: 10px;
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 6px;
+  border-bottom: 1px solid var(--jn-hair);
+}
+.skel-play {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
+  background-size: 200% 100%;
+  animation: skel 1.4s linear infinite;
+}
+.skel-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skel-name {
+  height: 16px;
+  width: 60%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
+  background-size: 200% 100%;
+  animation: skel 1.4s linear infinite;
+}
+.skel-artist {
+  height: 12px;
+  width: 40%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
+  background-size: 200% 100%;
+  animation: skel 1.4s linear infinite;
+}
+.skel-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.skel-tag {
+  width: 40px;
+  height: 20px;
+  border-radius: 4px;
   background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
   background-size: 200% 100%;
   animation: skel 1.4s linear infinite;
 }
 @keyframes skel { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 80px 0;
+}
+
+.error-text {
+  font-size: 15px;
+  color: var(--jn-danger);
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.retry-btn {
+  color: var(--jn-accent-ink) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 8px 24px var(--jn-glow);
+}
 
 .track-rows {
   list-style: none; padding: 0; margin: 0;
@@ -381,12 +412,12 @@ onBeforeUnmount(() => {
   padding: 12px 6px;
   border-bottom: 1px solid var(--jn-hair);
   transition: background 0.15s ease;
+  cursor: default;
 }
 
 .row:hover { background: var(--jn-row-hover); }
 .row.active { background: var(--jn-row-active); }
 .row.active .row-name { color: var(--jn-accent); }
-.row.disabled { opacity: 0.55; }
 
 .row-play {
   position: relative;
@@ -464,11 +495,6 @@ onBeforeUnmount(() => {
   background: var(--jn-row-hover);
 }
 
-.unavailable {
-  display: inline-flex; align-items: center; gap: 4px;
-  color: var(--jn-danger);
-}
-
 .pager {
   display: flex;
   justify-content: center;
@@ -481,22 +507,66 @@ onBeforeUnmount(() => {
   color: var(--jn-ink-muted);
 }
 
+.track-scroll {
+  scrollbar-width: none;
+}
+.track-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.pull-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  color: var(--jn-ink-dim);
+  font-size: 13px;
+  transition: height 0.25s ease;
+}
+.pull-indicator.active { color: var(--jn-accent); }
+.pull-indicator.refreshing :deep(.el-icon) { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--jn-ink-dim);
+  text-transform: uppercase;
+}
+
+.head-title h2 {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-style: italic;
+  font-size: clamp(30px, 4.2vw, 52px);
+  line-height: 1.02;
+  color: var(--jn-ink-strong);
+}
+
+.lead {
+  margin: 12px 0 0;
+  max-width: 42ch;
+  color: var(--jn-ink-dim);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
 @media (max-width: 720px) {
+  .library { padding: 0 16px 24px; }
   .library-head {
     flex-direction: column;
     align-items: stretch;
     gap: 16px;
+    padding: 40px 0 24px;
   }
-  .head-actions {
-    width: 100%;
-  }
+  .head-actions { width: 100%; }
   .search-input { flex: 1; width: auto; }
   .row { grid-template-columns: 36px 1fr auto; gap: 12px; padding: 10px 4px; }
   .row-meta .size { display: none; }
   .row-name { font-size: 14.5px; }
   .row-artist { font-size: 12.5px; }
-  .track-scroll {
-    padding-bottom: calc(150px + env(safe-area-inset-bottom));
-  }
 }
 </style>

@@ -52,14 +52,77 @@ async function fetchMediaUrl(trackId: string): Promise<{ url: string; format: st
   }
 }
 
-async function prefetchNextUrl(tracks: Track[], currentIdx: number) {
-  // 预取下一首的直链
-  const nextIdx = currentIdx + 1 < tracks.length ? currentIdx + 1 : 0
-  const next = tracks[nextIdx]
-  if (next?.trackId && !next.mediaUrl) {
-    const result = await fetchMediaUrl(next.trackId)
-    if (result) {
-      tracks[nextIdx] = { ...tracks[nextIdx], mediaUrl: result.url }
+// 批量获取直链
+async function fetchMediaUrls(trackIds: string[]): Promise<Map<string, { url: string; format: string }>> {
+  const result = new Map<string, { url: string; format: string }>()
+  
+  // 过滤出需要请求的ID（缓存中没有或已过期）
+  const idsToFetch: string[] = []
+  for (const id of trackIds) {
+    const cached = urlCache.get(id)
+    if (cached && Date.now() < cached.expiresAt) {
+      result.set(id, { url: cached.url, format: cached.format })
+    } else {
+      idsToFetch.push(id)
+    }
+  }
+  
+  if (idsToFetch.length === 0) return result
+  
+  try {
+    const res = await fetch(`/music/api/v1/tracks/media-urls?ids=${idsToFetch.join(',')}`)
+    const payload = await res.json()
+    if (payload.success && payload.data) {
+      for (const [trackId, data] of Object.entries(payload.data)) {
+        const mediaData = data as { mediaUrl: string; format?: string; expiresAt?: string }
+        if (mediaData.mediaUrl) {
+          const expiresAt = mediaData.expiresAt
+            ? new Date(mediaData.expiresAt).getTime()
+            : Date.now() + 3.5 * 60 * 60 * 1000
+          urlCache.set(trackId, { url: mediaData.mediaUrl, format: mediaData.format || '', expiresAt })
+          result.set(trackId, { url: mediaData.mediaUrl, format: mediaData.format || '' })
+        }
+      }
+    }
+  } catch {
+    // 批量获取失败，回退到单个获取
+    for (const id of idsToFetch) {
+      const singleResult = await fetchMediaUrl(id)
+      if (singleResult) {
+        result.set(id, singleResult)
+      }
+    }
+  }
+  
+  return result
+}
+
+async function prefetchNextUrls(tracks: Track[], currentIdx: number) {
+  // 预取接下来3首的直链
+  const prefetchCount = 3
+  const idsToPrefetch: string[] = []
+  
+  for (let i = 1; i <= prefetchCount; i++) {
+    const idx = (currentIdx + i) % tracks.length
+    const track = tracks[idx]
+    if (track?.trackId && !track.mediaUrl) {
+      idsToPrefetch.push(track.trackId)
+    }
+  }
+  
+  if (idsToPrefetch.length === 0) return
+  
+  const urlMap = await fetchMediaUrls(idsToPrefetch)
+  
+  // 回写到队列
+  for (let i = 1; i <= prefetchCount; i++) {
+    const idx = (currentIdx + i) % tracks.length
+    const track = tracks[idx]
+    if (track?.trackId) {
+      const urlData = urlMap.get(track.trackId)
+      if (urlData) {
+        tracks[idx] = { ...tracks[idx], mediaUrl: urlData.url }
+      }
     }
   }
 }
@@ -113,7 +176,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (track.mediaUrl) {
       doPlay(track.mediaUrl)
       // 后台预取下一首 + 预加载当前歌词
-      prefetchNextUrl(queue.value, index)
+      prefetchNextUrls(queue.value, index)
       fetchLyricsCached(track.trackId)
       return
     }
@@ -130,7 +193,7 @@ export const usePlayerStore = defineStore('player', () => {
     queue.value = queue.value.map((t, i) => i === index ? { ...t, mediaUrl: result.url } : t)
     doPlay(result.url)
     // 后台预取下一首 + 预加载当前歌词
-    prefetchNextUrl(queue.value, index)
+    prefetchNextUrls(queue.value, index)
     fetchLyricsCached(track.trackId)
   }
 
