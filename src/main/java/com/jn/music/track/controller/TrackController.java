@@ -77,6 +77,11 @@ public class TrackController {
         return ApiResponse.success(trackService.getMediaUrl(trackId));
     }
 
+    @GetMapping("/{trackId}/lyrics")
+    public ApiResponse<String> getLyrics(@PathVariable("trackId") String trackId) {
+        return ApiResponse.success(trackService.getLyrics(trackId));
+    }
+
     /**
      * APP专用接口：返回带播放直链的歌曲列表。
      * 适用于APP直接播放场景，避免二次请求。

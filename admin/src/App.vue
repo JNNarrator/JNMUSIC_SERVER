@@ -4,6 +4,7 @@ import { ElButton, ElIcon, ElTooltip } from 'element-plus'
 import { Sunny, Moon } from '@element-plus/icons-vue'
 import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
+import PlayerPage from './components/PlayerPage.vue'
 import BrandLogo from './components/BrandLogo.vue'
 import LanzouAuthPanel from './components/LanzouAuthPanel.vue'
 import { useThemeStore } from './stores/theme'
@@ -62,6 +63,7 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
     </main>
 
     <PlayerBar />
+    <PlayerPage />
   </div>
 </template>
 

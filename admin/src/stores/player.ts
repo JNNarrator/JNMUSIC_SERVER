@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { fetchLyricsCached } from '../utils/lrc'
 
 export type Track = {
   trackId: string
@@ -111,8 +112,9 @@ export const usePlayerStore = defineStore('player', () => {
 
     if (track.mediaUrl) {
       doPlay(track.mediaUrl)
-      // 后台预取下一首
+      // 后台预取下一首 + 预加载当前歌词
       prefetchNextUrl(queue.value, index)
+      fetchLyricsCached(track.trackId)
       return
     }
 
@@ -127,8 +129,9 @@ export const usePlayerStore = defineStore('player', () => {
     // 回写到 queue 中，后续切回这首歌不再请求
     queue.value = queue.value.map((t, i) => i === index ? { ...t, mediaUrl: result.url } : t)
     doPlay(result.url)
-    // 后台预取下一首
+    // 后台预取下一首 + 预加载当前歌词
     prefetchNextUrl(queue.value, index)
+    fetchLyricsCached(track.trackId)
   }
 
   function toggle() {

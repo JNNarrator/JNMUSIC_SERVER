@@ -38,6 +38,11 @@ public interface TrackService {
     MediaUrlDTO getMediaUrl(String trackId);
 
     /**
+     * 获取歌词内容（LRC 格式文本）。
+     */
+    String getLyrics(String trackId);
+
+    /**
      * 获取带播放直链的歌曲列表，适用于APP直接播放。
      */
     PageResponse<TrackWithUrlDTO> listTracksWithUrl(Integer page, Integer pageSize);

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, VideoPlay, Refresh } from '@element-plus/icons-vue'
+import { Search, VideoPlay, Refresh, Document } from '@element-plus/icons-vue'
 import { usePlayerStore, type Track } from '../stores/player'
+import LyricsPanel from './LyricsPanel.vue'
 
 const player = usePlayerStore()
 const tracks = ref<Track[]>([])
@@ -11,6 +12,9 @@ const page = ref(1)
 const pageSize = 20
 const keyword = ref('')
 const loading = ref(false)
+const lyricsTrackId = ref('')
+const lyricsTrackName = ref('')
+const showLyrics = ref(false)
 
 // --- pull-to-refresh ---
 const pullRef = ref<HTMLElement | null>(null)
@@ -64,6 +68,12 @@ function onRowActivate(track: Track, idx: number) {
     return
   }
   playAll(idx)
+}
+
+function openLyrics(trackId: string, name: string) {
+  lyricsTrackId.value = trackId
+  lyricsTrackName.value = name
+  showLyrics.value = true
 }
 
 function onSearch() { page.value = 1; fetchTracks() }
@@ -238,6 +248,14 @@ onBeforeUnmount(() => {
           <div class="row-meta">
             <span v-if="track.format" class="tag">{{ track.format.toUpperCase() }}</span>
             <span v-if="track.fileSize" class="size">{{ formatSize(track.fileSize) }}</span>
+            <button
+              v-if="track.hasLyric"
+              class="lyrics-btn"
+              title="歌词"
+              @click.stop="openLyrics(track.trackId, track.name)"
+            >
+              <el-icon :size="14"><Document /></el-icon>
+            </button>
           </div>
         </li>
       </ol>
@@ -255,6 +273,7 @@ onBeforeUnmount(() => {
         />
       </footer>
     </div>
+    <LyricsPanel v-model:open="showLyrics" :track-id="lyricsTrackId" :track-name="lyricsTrackName" />
   </section>
 </template>
 
@@ -426,6 +445,23 @@ onBeforeUnmount(() => {
   padding: 3px 7px;
   border: 1px solid var(--jn-hair-strong);
   border-radius: 4px;
+}
+
+.lyrics-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px; height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--jn-ink-dim);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.lyrics-btn:hover {
+  color: var(--jn-accent);
+  background: var(--jn-row-hover);
 }
 
 .unavailable {

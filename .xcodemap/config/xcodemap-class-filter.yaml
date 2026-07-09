@@ -1,23 +1,6 @@
 autoDeleteData: false
 autoDetectedPackages:
-- com.baomidou.mybatisplus.autoconfigure
 - com.jn.music
-- org.mybatis.spring.mapper
-- org.springframework.aop.framework
-- org.springframework.boot.autoconfigure
-- org.springframework.boot.context
-- org.springframework.boot.http
-- org.springframework.boot.jackson
-- org.springframework.boot.jdbc
-- org.springframework.boot.persistence
-- org.springframework.boot.servlet
-- org.springframework.boot.sql
-- org.springframework.boot.tomcat
-- org.springframework.boot.transaction
-- org.springframework.boot.validation
-- org.springframework.boot.web
-- org.springframework.context.event
-- org.springframework.transaction.annotation
 autoKeepDataNum: 10
 enableAutoDetect: true
 entryDisplayConfig:

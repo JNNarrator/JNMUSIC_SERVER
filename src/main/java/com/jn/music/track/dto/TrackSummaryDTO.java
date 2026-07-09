@@ -22,4 +22,5 @@ public class TrackSummaryDTO {
     private Integer duration;
     private String format;
     private Long fileSize;
+    private Boolean hasLyric;
 }

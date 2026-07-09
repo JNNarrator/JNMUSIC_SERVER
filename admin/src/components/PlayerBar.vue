@@ -11,8 +11,10 @@ import {
   Mute,
 } from '@element-plus/icons-vue'
 import { usePlayerStore, type PlayMode } from '../stores/player'
+import { useUiStore } from '../stores/ui'
 
 const player = usePlayerStore()
+const ui = useUiStore()
 
 function fmt(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
@@ -39,14 +41,45 @@ const MODE_META: Record<PlayMode, { label: string; icon: any }> = {
 }
 
 const modeMeta = computed(() => MODE_META[player.mode])
+
+function onBarClick(e: MouseEvent) {
+  // 如果点击的目标是按钮或其子元素，不打开全屏页
+  const target = e.target as HTMLElement
+  if (target.closest('.ctl-btn') || target.closest('.el-slider') || target.closest('.volume')) return
+  ui.openPlayerPage()
+}
+
+function onCapsuleClick() {
+  ui.openPlayerPage()
+}
 </script>
 
 <template>
+  <!-- 胶囊模式：全屏页打开时显示 -->
+  <Transition name="capsule">
+    <div
+      v-if="ui.showPlayerPage && player.currentTrack"
+      class="capsule"
+      :class="{ spinning: player.isPlaying }"
+      role="button"
+      aria-label="展开播放器"
+      @click="onCapsuleClick"
+    >
+      <div class="capsule-disc">
+        <div class="capsule-disc-inner" />
+        <div class="capsule-disc-hole" />
+      </div>
+    </div>
+  </Transition>
+
+  <!-- 正常 PlayerBar：全屏页关闭时显示 -->
   <footer
+    v-show="!ui.showPlayerPage"
     class="player-bar"
     :class="{ empty: !player.currentTrack }"
     role="region"
     aria-label="播放器"
+    @click="onBarClick"
   >
     <div class="cover" :class="{ spinning: player.isPlaying }">
       <div class="disc">
@@ -74,7 +107,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
             :icon="DArrowLeft"
             aria-label="上一曲"
             :disabled="!player.queue.length"
-            @click="player.prev"
+            @click.stop="player.prev"
           />
         </el-tooltip>
         <el-button
@@ -84,7 +117,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
           :loading="player.loading"
           :disabled="!player.currentTrack"
           aria-label="播放或暂停"
-          @click="player.toggle"
+          @click.stop="player.toggle"
         />
         <el-tooltip content="下一曲" placement="top" :hide-after="800">
           <el-button
@@ -94,7 +127,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
             :icon="DArrowRight"
             aria-label="下一曲"
             :disabled="!player.queue.length"
-            @click="player.next(true)"
+            @click.stop="player.next(true)"
           />
         </el-tooltip>
         <el-tooltip :content="modeMeta.label" placement="top" :hide-after="800">
@@ -105,14 +138,14 @@ const modeMeta = computed(() => MODE_META[player.mode])
             :class="{ active: true, ['mode-' + player.mode]: true }"
             :icon="modeMeta.icon"
             :aria-label="'播放模式：' + modeMeta.label"
-            @click="player.cyclePlayMode"
+            @click.stop="player.cyclePlayMode"
           >
             <span v-if="player.mode === 'one'" class="badge">1</span>
           </el-button>
         </el-tooltip>
       </div>
 
-      <div class="progress">
+      <div class="progress" @click.stop>
         <span class="time">{{ fmt(player.currentTime) }}</span>
         <el-slider
           v-model="progress"
@@ -127,7 +160,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
       </div>
     </div>
 
-    <div class="volume">
+    <div class="volume" @click.stop>
       <el-icon :size="18" class="vol-icon" aria-hidden="true"><Mute /></el-icon>
       <el-slider
         v-model="volumeValue"
@@ -142,6 +175,61 @@ const modeMeta = computed(() => MODE_META[player.mode])
 </template>
 
 <style scoped>
+/* 胶囊动画 */
+.capsule-enter-active,
+.capsule-leave-active {
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.capsule-enter-from {
+  opacity: 0;
+  transform: scale(0.4) translateY(40px);
+}
+.capsule-leave-to {
+  opacity: 0;
+  transform: scale(0.4) translateY(40px);
+}
+
+.capsule {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 45;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  cursor: pointer;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  transition: transform 0.2s ease;
+}
+.capsule:hover { transform: scale(1.08); }
+.capsule:active { transform: scale(0.95); }
+
+.capsule-disc {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, var(--jn-cover-center) 0 30%, transparent 31%),
+    repeating-radial-gradient(circle at 50% 50%, var(--jn-cover-groove) 0 2px, transparent 2px 4px),
+    var(--jn-cover-outer);
+}
+.capsule-disc-inner,
+.capsule-disc-hole { position: absolute; inset: 0; }
+.capsule-disc-inner {
+  margin: 22%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--jn-accent), var(--jn-accent-strong));
+}
+.capsule-disc-hole {
+  margin: 45%;
+  border-radius: 50%;
+  background: var(--jn-cover-hole);
+}
+.capsule.spinning .capsule-disc { animation: spin 8s linear infinite; }
+
+/* PlayerBar */
 .player-bar {
   position: fixed;
   left: 0;
@@ -158,6 +246,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
   backdrop-filter: blur(18px) saturate(120%);
   -webkit-backdrop-filter: blur(18px) saturate(120%);
   transition: background 0.35s ease, border-color 0.35s ease;
+  cursor: pointer;
 }
 
 .player-bar.empty .info .title { color: var(--jn-ink-muted); }
@@ -280,7 +369,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
 .vol-icon { color: var(--jn-ink-dim); }
 .volume-slider { width: 120px; }
 
-/* 移动端优化：折叠为两行紧凑布局，隐藏音量、时长文字。 */
+/* 移动端 */
 @media (max-width: 720px) {
   .player-bar {
     grid-template-columns: 44px 1fr auto;
