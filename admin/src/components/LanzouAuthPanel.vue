@@ -10,7 +10,7 @@ import {
   ElTooltip,
   ElMessage,
 } from 'element-plus'
-import { Cloudy, Key, Link, Refresh, Lock } from '@element-plus/icons-vue'
+import { Cloudy, Key, Link, Refresh, Lock, Close } from '@element-plus/icons-vue'
 
 type Status = { authenticated: boolean; uid?: string; reason?: string }
 
@@ -104,6 +104,8 @@ fetchStatus()
     direction="rtl"
     size="420px"
     :with-header="false"
+    :close-on-click-modal="true"
+    :close-on-press-escape="true"
     class="lanzou-drawer"
   >
     <div class="drawer-body">
@@ -321,6 +323,28 @@ fetchStatus()
   border-left: 1px solid var(--jn-hair);
 }
 .lanzou-drawer :deep(.el-drawer__body) { padding: 0; }
+
+.drawer-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--jn-ink-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, background 0.2s;
+  z-index: 10;
+}
+.drawer-close:hover {
+  color: var(--jn-ink-strong);
+  background: var(--jn-row-hover);
+}
 
 @media (max-width: 720px) {
   .lanzou-pill .txt { display: none; }

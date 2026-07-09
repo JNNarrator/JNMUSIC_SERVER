@@ -70,8 +70,8 @@ function playAll(startIndex = 0) {
 }
 
 function onRowActivate(track: Track, idx: number) {
+  // 如果点击的是正在播放的歌曲，不做任何操作
   if (player.currentTrack?.trackId === track.trackId) {
-    player.toggle()
     return
   }
   playAll(idx)
