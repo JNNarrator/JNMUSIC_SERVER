@@ -440,6 +440,9 @@ onBeforeUnmount(() => {
 }
 .row:hover .row-play .num { visibility: hidden; }
 .row:hover .row-play .hover-play { display: inline-flex; }
+/* 播放中的行，悬停时隐藏hover-play，避免和wave重叠 */
+.row.active:hover .row-play .hover-play { display: none; }
+.row.active:hover .row-play .num { visibility: visible; }
 .row.active .row-play { color: var(--jn-accent); }
 
 .wave { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; }
