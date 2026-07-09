@@ -44,6 +44,31 @@ function retryFetchLyrics() {
 watch(() => player.currentTrack?.trackId, (id) => { if (id && ui.showPlayerPage) fetchLyrics(id) }, { immediate: true })
 watch(() => ui.showPlayerPage, (show) => { if (show && player.currentTrack?.trackId) fetchLyrics(player.currentTrack.trackId) })
 
+// 更新浏览器标题 - 显示当前歌词
+function updateTitle() {
+  const track = player.currentTrack
+  if (!track) {
+    document.title = 'JNMusic'
+    return
+  }
+  
+  const lines = lyricLines.value
+  const idx = currentLineIdx.value
+  const currentLyric = (idx >= 0 && idx < lines.length && lines[idx].text) ? lines[idx].text.trim() : ''
+  
+  if (currentLyric && player.isPlaying) {
+    document.title = currentLyric + ' | ' + track.name + ' - ' + track.artist + ' | JNMusic'
+  } else {
+    document.title = track.name + ' - ' + track.artist + ' | JNMusic'
+  }
+}
+
+// 监听歌词行变化更新标题
+watch(currentLineIdx, updateTitle)
+watch(() => player.isPlaying, updateTitle)
+watch(() => player.currentTrack, updateTitle, { immediate: true })
+
+
 // RAF 循环 - 用节流更新进度，减少重绘
 let rafId = 0
 let lastProgressUpdate = 0
