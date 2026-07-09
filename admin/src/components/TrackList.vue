@@ -511,7 +511,11 @@ onBeforeUnmount(() => {
 }
 
 .track-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  max-height: calc(100vh - 300px);
 }
 .track-scroll::-webkit-scrollbar {
   display: none;

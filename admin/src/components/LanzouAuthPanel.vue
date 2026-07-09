@@ -109,6 +109,9 @@ fetchStatus()
     class="lanzou-drawer"
   >
     <div class="drawer-body">
+      <button class="drawer-close" @click="open = false" aria-label="关闭">
+        <el-icon :size="20"><Close /></el-icon>
+      </button>
       <header class="head">
         <p class="eyebrow">// Signal Check</p>
         <h3>蓝奏云认证</h3>
@@ -230,7 +233,7 @@ fetchStatus()
   50%      { box-shadow: 0 0 0 6px color-mix(in oklab, var(--jn-accent) 12%, transparent); }
 }
 
-.drawer-body { display: flex; flex-direction: column; gap: 20px; padding: 28px 24px 24px; color: var(--jn-ink); }
+.drawer-body { display: flex; flex-direction: column; gap: 20px; padding: 28px 24px 24px; color: var(--jn-ink); position: relative; min-height: 100%; }
 
 .head .eyebrow {
   margin: 0 0 6px;
