@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Frontend ###
+admin/node_modules/
+admin/dist/
+*.DS_Store
+LANZOU_*.md

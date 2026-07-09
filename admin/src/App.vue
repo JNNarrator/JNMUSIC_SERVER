@@ -5,6 +5,7 @@ import { Sunny, Moon } from '@element-plus/icons-vue'
 import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import BrandLogo from './components/BrandLogo.vue'
+import LanzouAuthPanel from './components/LanzouAuthPanel.vue'
 import { useThemeStore } from './stores/theme'
 
 const theme = useThemeStore()
@@ -28,20 +29,23 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
         <span>NOW ON AIR · SIDE B · 33 ⅓ RPM · KEEP THE NEEDLE STEADY · </span>
         <span>NOW ON AIR · SIDE B · 33 ⅓ RPM · KEEP THE NEEDLE STEADY · </span>
       </div>
-      <el-tooltip :content="themeLabel" placement="bottom">
-        <el-button
-          class="theme-toggle"
-          circle
-          text
-          :aria-label="themeLabel"
-          @click="theme.toggle()"
-        >
-          <el-icon :size="18">
-            <Moon v-if="theme.mode === 'dark'" />
-            <Sunny v-else />
-          </el-icon>
-        </el-button>
-      </el-tooltip>
+      <div class="header-actions">
+        <LanzouAuthPanel />
+        <el-tooltip :content="themeLabel" placement="bottom">
+          <el-button
+            class="theme-toggle"
+            circle
+            text
+            :aria-label="themeLabel"
+            @click="theme.toggle()"
+          >
+            <el-icon :size="18">
+              <Moon v-if="theme.mode === 'dark'" />
+              <Sunny v-else />
+            </el-icon>
+          </el-button>
+        </el-tooltip>
+      </div>
     </header>
 
     <main class="stage">
@@ -144,6 +148,13 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
 @keyframes scroll {
   from { transform: translateX(0); }
   to { transform: translateX(-100%); }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .theme-toggle {

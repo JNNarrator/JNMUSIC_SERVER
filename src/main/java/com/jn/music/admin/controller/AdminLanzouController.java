@@ -1,6 +1,5 @@
 package com.jn.music.admin.controller;
 
-import com.jn.music.admin.service.AdminTokenStore;
 import com.jn.music.common.ApiResponse;
 import com.jn.music.common.enums.ErrorCode;
 import com.jn.music.common.exception.BusinessException;
@@ -26,18 +25,13 @@ import java.util.Map;
 public class AdminLanzouController {
 
     private final LanzouApiClient lanzouClient;
-    private final AdminTokenStore tokenStore;
 
-    public AdminLanzouController(LanzouApiClient lanzouClient, AdminTokenStore tokenStore) {
+    public AdminLanzouController(LanzouApiClient lanzouClient) {
         this.lanzouClient = lanzouClient;
-        this.tokenStore = tokenStore;
     }
 
     @GetMapping("/status")
-    public ApiResponse<Map<String, Object>> status(
-            @RequestHeader(value = "X-Admin-Token", required = false) String token,
-            @RequestHeader(value = "X-Admin-User", required = false) String username) {
-        checkAdmin(token, username);
+    public ApiResponse<Map<String, Object>> status() {
         Map<String, Object> data = new LinkedHashMap<>();
         try {
             LanzouUidVei uv = lanzouClient.getUidVei();
@@ -51,11 +45,7 @@ public class AdminLanzouController {
     }
 
     @PostMapping("/cookie")
-    public ApiResponse<Map<String, Object>> updateCookie(
-            @RequestHeader(value = "X-Admin-Token", required = false) String token,
-            @RequestHeader(value = "X-Admin-User", required = false) String username,
-            @Valid @RequestBody CookieRequest req) {
-        checkAdmin(token, username);
+    public ApiResponse<Map<String, Object>> updateCookie(@Valid @RequestBody CookieRequest req) {
         try {
             lanzouClient.setSessionCookie(req.cookie().trim());
             lanzouClient.saveCookieCache();
@@ -70,11 +60,7 @@ public class AdminLanzouController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<Map<String, Object>> loginByPassword(
-            @RequestHeader(value = "X-Admin-Token", required = false) String token,
-            @RequestHeader(value = "X-Admin-User", required = false) String username,
-            @Valid @RequestBody LoginRequest req) {
-        checkAdmin(token, username);
+    public ApiResponse<Map<String, Object>> loginByPassword(@Valid @RequestBody LoginRequest req) {
         try {
             lanzouClient.login(req.username().trim(), req.password());
             lanzouClient.saveCookieCache();
@@ -85,12 +71,6 @@ public class AdminLanzouController {
             return ApiResponse.success(data);
         } catch (LanzouSessionException e) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "登录失败: " + e.getMessage());
-        }
-    }
-
-    private void checkAdmin(String token, String username) {
-        if (token == null || username == null || !tokenStore.isValid(token, username)) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "未授权");
         }
     }
 

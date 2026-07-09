@@ -15,6 +15,7 @@ public enum ErrorCode {
     MEDIA_UNAVAILABLE(502, "播放地址暂时不可用"),
     RATE_LIMITED(429, "请求频率过高"),
     INVALID_PARAMETER(400, "请求参数校验失败"),
+    UNAUTHORIZED(401, "未授权"),
     INTERNAL_ERROR(500, "服务内部错误");
 
     private final Integer httpStatus;

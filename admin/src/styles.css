@@ -1,0 +1,201 @@
+/* 主题变量：暖橙 accent 贯穿 light/dark 两种模式，替换 Element Plus 蓝色主色。 */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --jn-bg: #100c11;
+  --jn-bg-elev: #17131a;
+  --jn-bg-elev-2: #1d1820;
+  --jn-ink: #f6ecdc;
+  --jn-ink-strong: #f7ecd6;
+  --jn-ink-dim: rgba(246, 236, 220, 0.6);
+  --jn-ink-muted: rgba(246, 236, 220, 0.4);
+  --jn-accent: #f2b134;
+  --jn-accent-strong: #ffc457;
+  --jn-accent-ink: #1a0f05;
+  --jn-accent-soft: rgba(242, 177, 52, 0.14);
+  --jn-hair: rgba(246, 236, 220, 0.08);
+  --jn-hair-strong: rgba(246, 236, 220, 0.22);
+  --jn-danger: #e0685c;
+  --jn-row-hover: rgba(246, 236, 220, 0.04);
+  --jn-row-active: rgba(242, 177, 52, 0.06);
+  --jn-input-bg: rgba(20, 16, 20, 0.7);
+  --jn-input-ring: rgba(246, 236, 220, 0.22);
+  --jn-slider-track: rgba(246, 236, 220, 0.12);
+  --jn-slider-thumb-fill: #1a1218;
+  --jn-scroll-thumb: rgba(246, 236, 220, 0.14);
+  --jn-scroll-thumb-hover: rgba(246, 236, 220, 0.24);
+  --jn-bar-bg: rgba(16, 12, 17, 0.82);
+  --jn-tooltip-bg: #24202a;
+  --jn-message-bg: #1e1a22;
+  --jn-glow: rgba(242, 177, 52, 0.18);
+  --jn-grain-opacity: 0.06;
+  --jn-cover-outer: linear-gradient(135deg, #2a1e1a, #1a1218);
+  --jn-cover-center: #26202b;
+  --jn-cover-groove: rgba(246, 236, 220, 0.05);
+  --jn-cover-hole: #100c11;
+
+  --el-color-primary: #f2b134;
+  --el-color-primary-light-3: #f4c05c;
+  --el-color-primary-light-5: #f7d287;
+  --el-color-primary-light-7: #fae3b1;
+  --el-color-primary-light-9: #fef5e0;
+  --el-color-primary-dark-2: #d99a1f;
+  --el-bg-color: var(--jn-bg-elev);
+  --el-bg-color-overlay: var(--jn-bg-elev);
+  --el-bg-color-page: var(--jn-bg);
+  --el-text-color-primary: var(--jn-ink);
+  --el-text-color-regular: rgba(246, 236, 220, 0.85);
+  --el-text-color-secondary: var(--jn-ink-dim);
+  --el-text-color-placeholder: rgba(246, 236, 220, 0.32);
+  --el-border-color: var(--jn-hair);
+  --el-border-color-light: var(--jn-hair);
+  --el-border-color-lighter: var(--jn-hair);
+  --el-fill-color-blank: var(--jn-bg-elev);
+  --el-fill-color: rgba(246, 236, 220, 0.06);
+  --el-fill-color-light: rgba(246, 236, 220, 0.04);
+  --el-mask-color: rgba(16, 12, 17, 0.7);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --jn-bg: #f4ecd8;
+  --jn-bg-elev: #fbf4e2;
+  --jn-bg-elev-2: #ede2c4;
+  --jn-ink: #241b16;
+  --jn-ink-strong: #1a120c;
+  --jn-ink-dim: rgba(36, 27, 22, 0.68);
+  --jn-ink-muted: rgba(36, 27, 22, 0.46);
+  --jn-accent: #c26a12;
+  --jn-accent-strong: #a0530b;
+  --jn-accent-ink: #fff5df;
+  --jn-accent-soft: rgba(194, 106, 18, 0.14);
+  --jn-hair: rgba(36, 27, 22, 0.12);
+  --jn-hair-strong: rgba(36, 27, 22, 0.28);
+  --jn-danger: #b74236;
+  --jn-row-hover: rgba(36, 27, 22, 0.05);
+  --jn-row-active: rgba(194, 106, 18, 0.1);
+  --jn-input-bg: rgba(255, 250, 234, 0.9);
+  --jn-input-ring: rgba(36, 27, 22, 0.28);
+  --jn-slider-track: rgba(36, 27, 22, 0.14);
+  --jn-slider-thumb-fill: #fbf4e2;
+  --jn-scroll-thumb: rgba(36, 27, 22, 0.18);
+  --jn-scroll-thumb-hover: rgba(36, 27, 22, 0.32);
+  --jn-bar-bg: rgba(251, 244, 226, 0.86);
+  --jn-tooltip-bg: #2a2118;
+  --jn-message-bg: #fbf4e2;
+  --jn-glow: rgba(194, 106, 18, 0.22);
+  --jn-grain-opacity: 0.045;
+  --jn-cover-outer: linear-gradient(135deg, #d8b579, #b58147);
+  --jn-cover-center: #f4ecd8;
+  --jn-cover-groove: rgba(36, 27, 22, 0.08);
+  --jn-cover-hole: #fbf4e2;
+
+  --el-color-primary: #c26a12;
+  --el-color-primary-light-3: #d78d3b;
+  --el-color-primary-light-5: #e6ad6e;
+  --el-color-primary-light-7: #f0cca1;
+  --el-color-primary-light-9: #faedd7;
+  --el-color-primary-dark-2: #a0530b;
+  --el-bg-color: var(--jn-bg-elev);
+  --el-bg-color-overlay: var(--jn-bg-elev);
+  --el-bg-color-page: var(--jn-bg);
+  --el-text-color-primary: var(--jn-ink);
+  --el-text-color-regular: rgba(36, 27, 22, 0.85);
+  --el-text-color-secondary: var(--jn-ink-dim);
+  --el-text-color-placeholder: rgba(36, 27, 22, 0.36);
+  --el-border-color: var(--jn-hair);
+  --el-border-color-light: var(--jn-hair);
+  --el-border-color-lighter: var(--jn-hair);
+  --el-fill-color-blank: var(--jn-bg-elev);
+  --el-fill-color: rgba(36, 27, 22, 0.06);
+  --el-fill-color-light: rgba(36, 27, 22, 0.04);
+  --el-mask-color: rgba(36, 27, 22, 0.5);
+}
+
+html, body {
+  background: var(--jn-bg);
+  color: var(--jn-ink);
+  transition: background-color 0.35s ease, color 0.35s ease;
+}
+
+/* 移动端锁定视口滚动，仅让歌曲列表内部滚动。 */
+@media (max-width: 720px) {
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  #app {
+    height: 100%;
+  }
+}
+
+::selection { background: var(--jn-accent); color: var(--jn-accent-ink); }
+
+/* Element Plus 深色调整 */
+.el-input__wrapper,
+.el-textarea__inner {
+  background: var(--jn-input-bg) !important;
+  box-shadow: 0 0 0 1px var(--jn-hair) inset !important;
+  border-radius: 999px !important;
+}
+.el-input__wrapper:hover,
+.el-textarea__inner:hover {
+  box-shadow: 0 0 0 1px var(--jn-input-ring) inset !important;
+}
+.el-input.is-focus .el-input__wrapper,
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--jn-accent) inset !important;
+}
+.el-input__inner { color: var(--jn-ink) !important; }
+
+.el-pagination .btn-prev,
+.el-pagination .btn-next,
+.el-pagination .el-pager li {
+  background: transparent !important;
+  color: var(--jn-ink-dim) !important;
+}
+.el-pagination .el-pager li.is-active {
+  color: var(--jn-accent) !important;
+}
+
+.el-slider__runway { background: var(--jn-slider-track) !important; }
+.el-slider__bar { background: var(--jn-accent) !important; }
+.el-slider__button {
+  border: 2px solid var(--jn-accent) !important;
+  background: var(--jn-slider-thumb-fill) !important;
+}
+
+.el-tooltip__popper.is-dark {
+  background: var(--jn-tooltip-bg) !important;
+  border: 1px solid var(--jn-hair) !important;
+  color: #f6ecdc !important;
+}
+.el-popper.is-dark .el-popper__arrow::before {
+  background: var(--jn-tooltip-bg) !important;
+  border-color: var(--jn-hair) !important;
+}
+
+.el-message,
+.el-notification {
+  background: var(--jn-message-bg) !important;
+  border: 1px solid var(--jn-hair) !important;
+  color: var(--jn-ink) !important;
+}
+
+.el-drawer {
+  background: var(--jn-bg-elev) !important;
+  color: var(--jn-ink) !important;
+}
+.el-drawer__header { color: var(--jn-ink) !important; }
+
+.el-empty__description p { color: var(--jn-ink-dim) !important; }
+
+/* 通用滚动条 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--jn-scroll-thumb);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--jn-scroll-thumb-hover); }
+::-webkit-scrollbar-track { background: transparent; }
