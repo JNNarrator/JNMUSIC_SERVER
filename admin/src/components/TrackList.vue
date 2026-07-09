@@ -515,6 +515,7 @@ onBeforeUnmount(() => {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  height: calc(100vh - 200px);
   padding-bottom: calc(120px + env(safe-area-inset-bottom));
 }
 .track-scroll::-webkit-scrollbar {
