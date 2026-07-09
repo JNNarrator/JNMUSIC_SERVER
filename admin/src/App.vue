@@ -13,6 +13,15 @@ import { usePlayerStore } from './stores/player'
 const theme = useThemeStore()
 const player = usePlayerStore()
 
+// 禁止选中、复制、粘贴
+if (typeof window !== 'undefined') {
+  document.addEventListener('selectstart', (e) => e.preventDefault())
+  document.addEventListener('copy', (e) => e.preventDefault())
+  document.addEventListener('cut', (e) => e.preventDefault())
+  document.addEventListener('paste', (e) => e.preventDefault())
+  document.addEventListener('contextmenu', (e) => e.preventDefault())
+}
+
 const BASE_TITLE = 'JNMusic · 夜猫电台'
 watch(
   () => player.currentTrack,
