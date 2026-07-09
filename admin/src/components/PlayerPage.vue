@@ -102,25 +102,65 @@ const MODE_META: Record<PlayMode, { label: string; icon: any }> = {
 }
 const modeMeta = computed(() => MODE_META[player.mode])
 
-const dragOffset = ref(0)
+// 手势状态
+const dragOffsetY = ref(0) // 下滑偏移
+const dragOffsetX = ref(0) // 右滑偏移
 const dragging = ref(false)
-let startY = 0, startTime = 0
+const dragDirection = ref<'none' | 'vertical' | 'horizontal'>('none')
+let startX = 0, startY = 0, startTime = 0
 
 function onTouchStart(e: TouchEvent) {
   const c = lyricsContainer.value
   if (c && c.scrollTop > 5) return
-  startY = e.touches[0].clientY; startTime = Date.now(); dragging.value = true
+  startX = e.touches[0].clientX
+  startY = e.touches[0].clientY
+  startTime = Date.now()
+  dragging.value = true
+  dragDirection.value = 'none'
 }
+
 function onTouchMove(e: TouchEvent) {
   if (!dragging.value) return
+  
+  const dx = e.touches[0].clientX - startX
   const dy = e.touches[0].clientY - startY
-  if (dy > 0) dragOffset.value = dy
+  
+  // 根据初始移动方向锁定手势
+  if (dragDirection.value === 'none') {
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      dragDirection.value = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical'
+    }
+    return
+  }
+  
+  if (dragDirection.value === 'vertical' && dy > 0) {
+    dragOffsetY.value = dy
+  } else if (dragDirection.value === 'horizontal' && dx > 0) {
+    dragOffsetX.value = dx
+  }
 }
+
 function onTouchEnd() {
   if (!dragging.value) return
-  if (dragOffset.value > 100 || dragOffset.value / Math.max(Date.now() - startTime, 1) > 0.5) ui.closePlayerPage()
-  dragOffset.value = 0; dragging.value = false
+  const elapsed = Math.max(Date.now() - startTime, 1)
+  
+  // 判断是否触发关闭
+  if (dragDirection.value === 'vertical') {
+    if (dragOffsetY.value > 100 || dragOffsetY.value / elapsed > 0.5) {
+      ui.closePlayerPage()
+    }
+  } else if (dragDirection.value === 'horizontal') {
+    if (dragOffsetX.value > 100 || dragOffsetX.value / elapsed > 0.5) {
+      ui.closePlayerPage()
+    }
+  }
+  
+  dragOffsetY.value = 0
+  dragOffsetX.value = 0
+  dragging.value = false
+  dragDirection.value = 'none'
 }
+
 function handleClose() { ui.closePlayerPage() }
 </script>
 
@@ -129,7 +169,10 @@ function handleClose() { ui.closePlayerPage() }
     <div
       v-if="ui.showPlayerPage"
       class="player-page"
-      :style="dragging && dragOffset > 0 ? { transform: `translateY(${dragOffset}px)`, opacity: 1 - dragOffset / 600 } : {}"
+      :style="dragging && (dragOffsetY > 0 || dragOffsetX > 0) ? { 
+          transform: dragOffsetX > 0 ? `translateX(${dragOffsetX}px)` : `translateY(${dragOffsetY}px)`, 
+          opacity: 1 - Math.max(dragOffsetY, dragOffsetX) / 600 
+        } : {}"
       @touchstart.passive="onTouchStart" @touchmove.passive="onTouchMove" @touchend.passive="onTouchEnd"
     >
       <header class="pp-header">
