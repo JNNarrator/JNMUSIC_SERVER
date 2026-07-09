@@ -561,7 +561,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 720px) {
-  .library { padding: 0 16px 24px; }
+  .library { padding: 0 16px calc(140px + env(safe-area-inset-bottom)); }
   .library-head {
     flex-direction: column;
     align-items: stretch;
