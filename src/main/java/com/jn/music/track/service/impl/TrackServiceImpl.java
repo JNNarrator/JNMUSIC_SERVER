@@ -3,12 +3,10 @@ package com.jn.music.track.service.impl;
 import com.jn.music.common.PageResponse;
 import com.jn.music.common.enums.ErrorCode;
 import com.jn.music.common.exception.BusinessException;
-import com.jn.music.lanzou.LanzouApiClient;
-import com.jn.music.lanzou.LanzouSessionException;
-import com.jn.music.lanzou.dto.LanzouDirectLink;
-import com.jn.music.lanzou.dto.LanzouFile;
-import com.jn.music.lanzou.dto.LanzouFolder;
-import com.jn.music.lanzou.dto.LanzouPageResult;
+import com.jn.music.storage.MusicStorage;
+import com.jn.music.storage.StorageFile;
+import com.jn.music.storage.StorageFolder;
+import com.jn.music.storage.StorageListResult;
 import com.jn.music.track.dto.MediaUrlDTO;
 import com.jn.music.track.dto.TrackDTO;
 import com.jn.music.track.dto.TrackSummaryDTO;
@@ -27,13 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 @Service
 public class TrackServiceImpl implements TrackService {
 
-    private record SongFolder(String folderId, String folderName, LanzouFile audioFile, LanzouFile lyricFile) {
+    private record SongFolder(String folderId, String folderName, StorageFile audioFile, StorageFile lyricFile) {
         ParsedName parseFolderName() {
             if (folderName == null || folderName.isBlank()) {
                 return new ParsedName("", null, "", false);
@@ -78,10 +75,10 @@ public class TrackServiceImpl implements TrackService {
     private final ConcurrentHashMap<String, String> lyricsCache = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> lyricsCacheExpiry = new ConcurrentHashMap<>();
 
-    private final LanzouApiClient lanzouClient;
+    private final MusicStorage musicStorage;
 
-    public TrackServiceImpl(LanzouApiClient lanzouClient) {
-        this.lanzouClient = lanzouClient;
+    public TrackServiceImpl(MusicStorage musicStorage) {
+        this.musicStorage = musicStorage;
     }
 
     // ==================== 公开接口 ====================
@@ -164,7 +161,6 @@ public class TrackServiceImpl implements TrackService {
     }
 
     @Override
-    @Cacheable(value = "direct-links", key = "#trackId", cacheManager = "directLinkCacheManager")
     public MediaUrlDTO getMediaUrl(String trackId) {
         String id = requireTrackId(trackId);
         String format = "";
@@ -175,14 +171,14 @@ public class TrackServiceImpl implements TrackService {
             }
         }
         try {
-            LanzouDirectLink link = lanzouClient.getFileDownloadLink(id);
+            String url = musicStorage.getDownloadUrl(id);
             return MediaUrlDTO.builder()
                     .trackId(id)
-                    .mediaUrl(link.url())
+                    .mediaUrl(url)
                     .format(format)
-                    .expiresAt(OffsetDateTime.ofInstant(link.expiresAt(), ZoneOffset.UTC))
+                    .expiresAt(OffsetDateTime.now().plusHours(4))
                     .build();
-        } catch (LanzouSessionException e) {
+        } catch (Exception e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "获取播放链接失败: " + e.getMessage());
         }
     }
@@ -207,8 +203,8 @@ public class TrackServiceImpl implements TrackService {
         for (SongFolder sf : loadSongFolders()) {
             if (sf.audioFile().id().equals(id) && sf.lyricFile() != null) {
                 try {
-                    LanzouDirectLink link = lanzouClient.getFileDownloadLink(sf.lyricFile().id());
-                    String lyrics = downloadText(link.url());
+                    String url = musicStorage.getDownloadUrl(sf.lyricFile().id());
+                    String lyrics = downloadText(url);
                     lyricsCache.put(id, lyrics);
                     lyricsCacheExpiry.put(id, Instant.now().plus(LYRICS_TTL));
                     return lyrics;
@@ -274,22 +270,22 @@ public class TrackServiceImpl implements TrackService {
         List<SongFolder> folders = new ArrayList<>();
         try {
             loadSongFoldersRecursively(ROOT_FOLDER_ID, folders);
-        } catch (LanzouSessionException e) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "蓝奏云读取失败: " + e.getMessage());
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "存储读取失败: " + e.getMessage());
         }
-        log.info("蓝奏云扫描完成：共 {} 个歌曲文件夹", folders.size());
+        log.info("存储扫描完成：共 {} 个歌曲文件夹 [{}]", folders.size(), musicStorage.getStorageName());
         cachedSongFolders = folders;
         songFoldersExpiresAt = Instant.now().plus(SONG_FOLDERS_TTL);
         return folders;
     }
 
-    private void loadSongFoldersRecursively(String folderId, List<SongFolder> out) throws LanzouSessionException {
+    private void loadSongFoldersRecursively(String folderId, List<SongFolder> out) {
         for (int page = 1; page <= MAX_PAGES; page++) {
-            LanzouPageResult r = lanzouClient.listFiles(folderId, page);
+            StorageListResult r = musicStorage.listFiles(folderId, page);
             if (r == null) break;
 
-            if (page == 1 && r.folders() != null) {
-                for (LanzouFolder sub : r.folders()) {
+            if (page == 1 && !r.folders().isEmpty()) {
+                for (StorageFolder sub : r.folders()) {
                     SongFolder songFolder = scanSongFolder(sub.id(), sub.name());
                     if (songFolder != null) {
                         out.add(songFolder);
@@ -302,13 +298,13 @@ public class TrackServiceImpl implements TrackService {
         }
     }
 
-    private SongFolder scanSongFolder(String folderId, String folderName) throws LanzouSessionException {
-        LanzouPageResult r = lanzouClient.listFiles(folderId, 1);
-        if (r == null || r.files() == null) return null;
+    private SongFolder scanSongFolder(String folderId, String folderName) {
+        StorageListResult r = musicStorage.listFiles(folderId, 1);
+        if (r == null || r.files().isEmpty()) return null;
 
-        LanzouFile audioFile = null;
-        LanzouFile lyricFile = null;
-        for (LanzouFile f : r.files()) {
+        StorageFile audioFile = null;
+        StorageFile lyricFile = null;
+        for (StorageFile f : r.files()) {
             if (isAudio(f.name())) {
                 audioFile = f;
             } else if (f.name().toLowerCase(Locale.ROOT).endsWith(".txt")) {
@@ -344,17 +340,17 @@ public class TrackServiceImpl implements TrackService {
         for (SongFolder sf : songFolders) {
             ParsedName pn = sf.parseFolderName();
             try {
-                LanzouDirectLink link = lanzouClient.getFileDownloadLink(sf.audioFile().id());
+                String url = musicStorage.getDownloadUrl(sf.audioFile().id());
                 out.add(TrackWithUrlDTO.builder()
                         .trackId(sf.audioFile().id())
                         .name(pn.name())
                         .artist(pn.artist())
                         .format(pn.format())
                         .fileSize(sf.audioFile().size())
-                        .mediaUrl(link.url())
-                        .urlExpiresAt(OffsetDateTime.ofInstant(link.expiresAt(), ZoneOffset.UTC))
+                        .mediaUrl(url)
+                        .urlExpiresAt(OffsetDateTime.now().plusHours(4))
                         .build());
-            } catch (LanzouSessionException e) {
+            } catch (Exception e) {
                 out.add(TrackWithUrlDTO.builder()
                         .trackId(sf.audioFile().id())
                         .name(pn.name())
