@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { ElButton, ElIcon, ElTooltip } from 'element-plus'
 import { Sunny, Moon } from '@element-plus/icons-vue'
 import TrackList from './components/TrackList.vue'
@@ -7,8 +7,17 @@ import PlayerBar from './components/PlayerBar.vue'
 import BrandLogo from './components/BrandLogo.vue'
 import LanzouAuthPanel from './components/LanzouAuthPanel.vue'
 import { useThemeStore } from './stores/theme'
+import { usePlayerStore } from './stores/player'
 
 const theme = useThemeStore()
+const player = usePlayerStore()
+
+const BASE_TITLE = 'JNMusic · 夜猫电台'
+watch(
+  () => player.currentTrack,
+  (t) => { document.title = t ? t.name + ' - ' + t.artist + ' | JNMusic' : BASE_TITLE },
+  { immediate: true }
+)
 const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' : '切到夜间模式'))
 </script>
 
@@ -31,7 +40,7 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
       </div>
       <div class="header-actions">
         <LanzouAuthPanel />
-        <el-tooltip :content="themeLabel" placement="bottom">
+        <el-tooltip :content="themeLabel" placement="bottom" :hide-after="800">
           <el-button
             class="theme-toggle"
             circle
@@ -188,11 +197,9 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
   .stage {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    /* 留出底部 PlayerBar + 安全区高度，避免最后一行被遮挡。 */
-    padding-bottom: calc(150px + env(safe-area-inset-bottom));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
   .marquee { display: none; }
   .brand-name { font-size: 18px; }

@@ -14,12 +14,18 @@ import com.jn.music.track.dto.TrackSummaryDTO;
 import com.jn.music.track.dto.TrackWithUrlDTO;
 import com.jn.music.track.service.TrackService;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 
 import org.springframework.stereotype.Service;
 
@@ -39,10 +45,24 @@ public class TrackServiceImpl implements TrackService {
     /** 蓝奏云根目录一次最多能拉的文件数（前端不做真正翻页时，把常见几百首装下）。 */
     private static final int MAX_PAGES = 20;
 
+    /** 直链缓存有效期（3.5 小时，直链本身 4 小时有效）。 */
+    private static final Duration CACHE_TTL = Duration.ofHours(3).plusMinutes(30);
+
+    /** 直链缓存：fileId -> CachedLink。 */
+    private final ConcurrentHashMap<String, CachedLink> directLinkCache = new ConcurrentHashMap<>();
+
+    /** 并发预取线程池。 */
+    private final ExecutorService prefetchPool = Executors.newFixedThreadPool(4);
+
     private final LanzouApiClient lanzouClient;
 
     public TrackServiceImpl(LanzouApiClient lanzouClient) {
         this.lanzouClient = lanzouClient;
+    }
+
+    /** 缓存条目。 */
+    private record CachedLink(String url, String format, Instant expiresAt) {
+        boolean isValid() { return Instant.now().isBefore(expiresAt); }
     }
 
     @Override
@@ -155,6 +175,18 @@ public class TrackServiceImpl implements TrackService {
     @Override
     public MediaUrlDTO getMediaUrl(String trackId) {
         String id = requireTrackId(trackId);
+
+        // 先查缓存
+        CachedLink cached = directLinkCache.get(id);
+        if (cached != null && cached.isValid()) {
+            return MediaUrlDTO.builder()
+                    .trackId(id)
+                    .mediaUrl(cached.url())
+                    .format(cached.format())
+                    .expiresAt(OffsetDateTime.ofInstant(cached.expiresAt(), ZoneOffset.UTC))
+                    .build();
+        }
+
         // 找到对应的文件（用于确定 format），不存在直接返回 404 语义
         String format = "";
         for (LanzouFile f : loadAllAudioFiles()) {
@@ -173,12 +205,34 @@ public class TrackServiceImpl implements TrackService {
         } catch (LanzouSessionException e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "获取蓝奏云直链失败: " + e.getMessage());
         }
+
+        // 写入缓存
+        Instant expiry = Instant.now().plus(CACHE_TTL);
+        directLinkCache.put(id, new CachedLink(link.url(), format, expiry));
+
         return MediaUrlDTO.builder()
                 .trackId(id)
                 .mediaUrl(link.url())
                 .format(format)
                 .expiresAt(OffsetDateTime.ofInstant(link.expiresAt(), ZoneOffset.UTC))
                 .build();
+    }
+
+    /**
+     * 后台预取指定歌曲的直链并缓存，不阻塞调用方。
+     */
+    public void prefetchDirectLink(String trackId, String format) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                CachedLink cached = directLinkCache.get(trackId);
+                if (cached != null && cached.isValid()) return;
+                LanzouDirectLink link = lanzouClient.getFileDownloadLink(trackId);
+                Instant expiry = Instant.now().plus(CACHE_TTL);
+                directLinkCache.put(trackId, new CachedLink(link.url(), format, expiry));
+            } catch (Exception ignored) {
+                // 预取失败不影响主流程
+            }
+        }, prefetchPool);
     }
 
     // ==================== 内部辅助 ====================
@@ -210,6 +264,8 @@ public class TrackServiceImpl implements TrackService {
                     .trackId(f.id())
                     .name(pn.name())
                     .artist(pn.artist())
+                    .format(pn.format())
+                    .fileSize(f.size())
                     .build());
         }
         return out;

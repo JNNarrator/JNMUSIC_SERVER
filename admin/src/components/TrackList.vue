@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, VideoPlay, Loading } from '@element-plus/icons-vue'
+import { Search, VideoPlay, Refresh } from '@element-plus/icons-vue'
 import { usePlayerStore, type Track } from '../stores/player'
 
 const player = usePlayerStore()
@@ -12,6 +12,16 @@ const pageSize = 20
 const keyword = ref('')
 const loading = ref(false)
 
+// --- pull-to-refresh ---
+const pullRef = ref<HTMLElement | null>(null)
+const scrollRef = ref<HTMLElement | null>(null)
+const pulling = ref(false)
+const pullDistance = ref(0)
+const refreshing = ref(false)
+const PULL_THRESHOLD = 80
+let startY = 0
+let skipPull = false
+
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
 async function fetchTracks() {
@@ -19,8 +29,8 @@ async function fetchTracks() {
   try {
     const q = keyword.value.trim()
     const url = q
-      ? `/music/api/v1/tracks/app/search?q=${encodeURIComponent(q)}&page=${page.value}&pageSize=${pageSize}`
-      : `/music/api/v1/tracks/app?page=${page.value}&pageSize=${pageSize}`
+      ? `/music/api/v1/tracks/search?q=${encodeURIComponent(q)}&page=${page.value}&pageSize=${pageSize}`
+      : `/music/api/v1/tracks?page=${page.value}&pageSize=${pageSize}`
     const res = await fetch(url)
     const payload = await res.json()
     if (!payload.success) {
@@ -41,22 +51,14 @@ async function fetchTracks() {
 }
 
 function playAll(startIndex = 0) {
-  const playable = tracks.value.filter((t) => t.mediaUrl)
-  if (!playable.length) {
+  if (!tracks.value.length) {
     ElMessage.warning('暂无可播放的曲目')
     return
   }
-  const startTrack = tracks.value[startIndex]
-  const realIndex = playable.findIndex((t) => t.trackId === startTrack?.trackId)
-  player.setQueue(playable, realIndex >= 0 ? realIndex : 0)
+  player.setQueue(tracks.value, startIndex)
 }
 
-// 点击整行的行为：若已是当前曲目则切换播放/暂停，否则从该曲开始播放。
 function onRowActivate(track: Track, idx: number) {
-  if (!track.mediaUrl) {
-    ElMessage.warning('该曲目暂不可播放')
-    return
-  }
   if (player.currentTrack?.trackId === track.trackId) {
     player.toggle()
     return
@@ -67,17 +69,84 @@ function onRowActivate(track: Track, idx: number) {
 function onSearch() { page.value = 1; fetchTracks() }
 function onPageChange(p: number) { page.value = p; fetchTracks() }
 
+async function doRefresh() {
+  refreshing.value = true
+  page.value = 1
+  await fetchTracks()
+  refreshing.value = false
+}
+
+function isScrolledFromTarget(target: EventTarget | null): boolean {
+  let el = target as HTMLElement | null
+  while (el && el !== pullRef.value) {
+    if (el.scrollTop > 0) return true
+    el = el.parentElement
+  }
+  return false
+}
+
+function onTouchStart(e: TouchEvent) {
+  if (refreshing.value) return
+  skipPull = isScrolledFromTarget(e.target)
+  startY = e.touches[0].clientY
+  pulling.value = false
+}
+
+function onTouchMove(e: TouchEvent) {
+  if (refreshing.value || skipPull) return
+  const dy = e.touches[0].clientY - startY
+  if (dy <= 0) {
+    pullDistance.value = 0
+    pulling.value = false
+    return
+  }
+  pullDistance.value = Math.min(dy, 140)
+  pulling.value = true
+}
+
+function onTouchEnd() {
+  if (refreshing.value) return
+  if (pulling.value && pullDistance.value >= PULL_THRESHOLD) {
+    pullDistance.value = 52
+    doRefresh()
+  } else {
+    pullDistance.value = 0
+  }
+  pulling.value = false
+}
+
 function formatSize(bytes?: number) {
   if (!bytes) return ''
   const mb = bytes / 1024 / 1024
   return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`
 }
 
-onMounted(fetchTracks)
+function bindTouch(el: HTMLElement | null) {
+  if (!el) return
+  el.addEventListener('touchstart', onTouchStart, { passive: true })
+  el.addEventListener('touchmove', onTouchMove, { passive: true })
+  el.addEventListener('touchend', onTouchEnd, { passive: true })
+}
+
+function unbindTouch(el: HTMLElement | null) {
+  if (!el) return
+  el.removeEventListener('touchstart', onTouchStart)
+  el.removeEventListener('touchmove', onTouchMove)
+  el.removeEventListener('touchend', onTouchEnd)
+}
+
+onMounted(() => {
+  fetchTracks()
+  bindTouch(scrollRef.value)
+})
+
+onBeforeUnmount(() => {
+  unbindTouch(scrollRef.value)
+})
 </script>
 
 <template>
-  <section class="library">
+  <section ref="pullRef" class="library">
     <header class="library-head">
       <div class="head-title">
         <p class="eyebrow">// Tonight&rsquo;s Rotation</p>
@@ -107,83 +176,131 @@ onMounted(fetchTracks)
       </div>
     </header>
 
-    <div v-if="loading" class="skeleton">
-      <div v-for="n in 6" :key="n" class="row-skel" />
-    </div>
-
-    <el-empty
-      v-else-if="!tracks.length"
-      description="书架空空，先添几张唱片吧"
-      :image-size="80"
-    />
-
-    <ol v-else class="track-rows" role="list">
-      <li
-        v-for="(track, idx) in tracks"
-        :key="track.trackId"
-        class="row"
-        :class="{ active: player.currentTrack?.trackId === track.trackId, disabled: !track.mediaUrl }"
-        role="button"
-        tabindex="0"
-        :aria-disabled="!track.mediaUrl"
-        :aria-label="`播放 ${track.name}`"
-        @click="onRowActivate(track, idx)"
-        @keydown.enter.prevent="onRowActivate(track, idx)"
-        @keydown.space.prevent="onRowActivate(track, idx)"
+    <div ref="scrollRef" class="track-scroll">
+      <div
+        class="pull-indicator"
+        :class="{ active: pullDistance >= PULL_THRESHOLD, refreshing }"
+        :style="{ height: pullDistance + 'px', opacity: Math.min(pullDistance / 60, 1) }"
       >
-        <div class="row-play" aria-hidden="true">
-          <span
-            v-if="player.currentTrack?.trackId === track.trackId && player.isPlaying"
-            class="wave"
-          >
-            <i /><i /><i /><i />
-          </span>
-          <template v-else>
-            <span class="num">{{ (page - 1) * pageSize + idx + 1 }}</span>
-            <span class="hover-play">
-              <el-icon :size="18"><VideoPlay /></el-icon>
-            </span>
-          </template>
-        </div>
-        <div class="row-main">
-          <p class="row-name">{{ track.name }}</p>
-          <p class="row-artist">{{ track.artist || '未知艺人' }}</p>
-        </div>
-        <div class="row-meta">
-          <span v-if="track.format" class="tag">{{ track.format.toUpperCase() }}</span>
-          <span v-if="track.fileSize" class="size">{{ formatSize(track.fileSize) }}</span>
-          <span v-if="!track.mediaUrl" class="unavailable">
-            <el-icon><Loading /></el-icon>暂不可播放
-          </span>
-        </div>
-      </li>
-    </ol>
+        <el-icon
+          :size="20"
+          :style="{ transform: refreshing ? '' : `rotate(${pullDistance * 3}deg)` }"
+        >
+          <Refresh />
+        </el-icon>
+        <span v-if="refreshing">刷新中…</span>
+        <span v-else-if="pullDistance >= PULL_THRESHOLD">松手刷新</span>
+        <span v-else>下拉刷新</span>
+      </div>
 
-    <footer v-if="total > pageSize" class="pager">
-      <el-pagination
-        :current-page="page"
-        :page-size="pageSize"
-        :total="total"
-        :page-count="totalPages"
-        layout="prev, pager, next"
-        background
-        hide-on-single-page
-        @current-change="onPageChange"
+      <div v-if="loading && !refreshing" class="skeleton">
+        <div v-for="n in 6" :key="n" class="row-skel" />
+      </div>
+
+      <el-empty
+        v-else-if="!tracks.length"
+        description="书架空空，先添几张唱片吧"
+        :image-size="80"
       />
-    </footer>
+
+      <ol v-else class="track-rows" role="list">
+        <li
+          v-for="(track, idx) in tracks"
+          :key="track.trackId"
+          class="row"
+          :class="{ active: player.currentTrack?.trackId === track.trackId }"
+          role="button"
+          tabindex="0"
+          
+          :aria-label="`播放 ${track.name}`"
+          @click="onRowActivate(track, idx)"
+          @keydown.enter.prevent="onRowActivate(track, idx)"
+          @keydown.space.prevent="onRowActivate(track, idx)"
+        >
+          <div class="row-play" aria-hidden="true">
+            <span
+              v-if="player.currentTrack?.trackId === track.trackId && player.isPlaying"
+              class="wave"
+            >
+              <i /><i /><i /><i />
+            </span>
+            <template v-else>
+              <span class="num">{{ (page - 1) * pageSize + idx + 1 }}</span>
+              <span class="hover-play">
+                <el-icon :size="18"><VideoPlay /></el-icon>
+              </span>
+            </template>
+          </div>
+          <div class="row-main">
+            <p class="row-name">{{ track.name }}</p>
+            <p class="row-artist">{{ track.artist || '未知艺人' }}</p>
+          </div>
+          <div class="row-meta">
+            <span v-if="track.format" class="tag">{{ track.format.toUpperCase() }}</span>
+            <span v-if="track.fileSize" class="size">{{ formatSize(track.fileSize) }}</span>
+          </div>
+        </li>
+      </ol>
+
+      <footer v-if="total > pageSize" class="pager">
+        <el-pagination
+          :current-page="page"
+          :page-size="pageSize"
+          :total="total"
+          :page-count="totalPages"
+          layout="prev, pager, next"
+          background
+          hide-on-single-page
+          @current-change="onPageChange"
+        />
+      </footer>
+    </div>
   </section>
 </template>
 
 <style scoped>
-.library { display: flex; flex-direction: column; gap: 22px; }
+.library {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 
 .library-head {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
   flex-wrap: wrap;
+  padding-bottom: 22px;
 }
+
+.track-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  /* 隐藏滚动条 */
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE/Edge */
+}
+.track-scroll::-webkit-scrollbar {  /* Chrome/Safari */
+  display: none;
+}
+
+.pull-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  color: var(--jn-ink-dim);
+  font-size: 13px;
+  transition: height 0.25s ease;
+}
+.pull-indicator.active { color: var(--jn-accent); }
+.pull-indicator.refreshing :deep(.el-icon) { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .eyebrow {
   margin: 0 0 8px;
@@ -342,5 +459,8 @@ onMounted(fetchTracks)
   .row-meta .size { display: none; }
   .row-name { font-size: 14.5px; }
   .row-artist { font-size: 12.5px; }
+  .track-scroll {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom));
+  }
 }
 </style>

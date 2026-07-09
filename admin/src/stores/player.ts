@@ -30,6 +30,39 @@ const audio: HTMLAudioElement | null =
   typeof window !== 'undefined' ? new Audio() : null
 if (audio) audio.preload = 'metadata'
 
+// 前端直链缓存：trackId -> { url, format, expiresAt }
+const urlCache = new Map<string, { url: string; format: string; expiresAt: number }>()
+
+async function fetchMediaUrl(trackId: string): Promise<{ url: string; format: string } | null> {
+  // 先查缓存
+  const cached = urlCache.get(trackId)
+  if (cached && Date.now() < cached.expiresAt) return { url: cached.url, format: cached.format }
+  try {
+    const res = await fetch(`/music/api/v1/tracks/${trackId}/media-url`)
+    const payload = await res.json()
+    if (!payload.success || !payload.data?.mediaUrl) return null
+    const expiresAt = payload.data.expiresAt
+      ? new Date(payload.data.expiresAt).getTime()
+      : Date.now() + 3.5 * 60 * 60 * 1000
+    urlCache.set(trackId, { url: payload.data.mediaUrl, format: payload.data.format || '', expiresAt })
+    return { url: payload.data.mediaUrl, format: payload.data.format || '' }
+  } catch {
+    return null
+  }
+}
+
+async function prefetchNextUrl(tracks: Track[], currentIdx: number) {
+  // 预取下一首的直链
+  const nextIdx = currentIdx + 1 < tracks.length ? currentIdx + 1 : 0
+  const next = tracks[nextIdx]
+  if (next?.trackId && !next.mediaUrl) {
+    const result = await fetchMediaUrl(next.trackId)
+    if (result) {
+      tracks[nextIdx] = { ...tracks[nextIdx], mediaUrl: result.url }
+    }
+  }
+}
+
 export const usePlayerStore = defineStore('player', () => {
   const queue = ref<Track[]>([])
   const currentIndex = ref(-1)
@@ -54,27 +87,48 @@ export const usePlayerStore = defineStore('player', () => {
     playIndex(Math.min(startIndex, tracks.length - 1))
   }
 
-  function playIndex(index: number) {
+  function doPlay(url: string) {
     if (!audio) return
-    if (index < 0 || index >= queue.value.length) return
-    currentIndex.value = index
-    const track = queue.value[index]
-    if (!track?.mediaUrl) {
-      isPlaying.value = false
-      return
-    }
     loading.value = true
-    audio.src = track.mediaUrl
+    audio.src = url
     audio.currentTime = 0
     audio.volume = volume.value
     const promise = audio.play()
     if (promise && typeof promise.catch === 'function') {
       promise.catch(() => {
-        // 浏览器自动播放策略拒绝时，保持暂停态由用户手动触发。
         isPlaying.value = false
         loading.value = false
       })
     }
+  }
+
+  async function playIndex(index: number) {
+    if (!audio) return
+    if (index < 0 || index >= queue.value.length) return
+    currentIndex.value = index
+    const track = queue.value[index]
+    if (!track) return
+
+    if (track.mediaUrl) {
+      doPlay(track.mediaUrl)
+      // 后台预取下一首
+      prefetchNextUrl(queue.value, index)
+      return
+    }
+
+    // 没有直链，按需获取
+    loading.value = true
+    const result = await fetchMediaUrl(track.trackId)
+    if (!result) {
+      isPlaying.value = false
+      loading.value = false
+      return
+    }
+    // 回写到 queue 中，后续切回这首歌不再请求
+    queue.value = queue.value.map((t, i) => i === index ? { ...t, mediaUrl: result.url } : t)
+    doPlay(result.url)
+    // 后台预取下一首
+    prefetchNextUrl(queue.value, index)
   }
 
   function toggle() {

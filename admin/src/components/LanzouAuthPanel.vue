@@ -85,7 +85,7 @@ fetchStatus()
 </script>
 
 <template>
-  <el-tooltip :content="lightLabel" placement="bottom">
+  <el-tooltip :content="lightLabel" placement="bottom" :hide-after="800">
     <button
       class="lanzou-pill"
       :class="`state-${light}`"
@@ -117,7 +117,7 @@ fetchStatus()
         <div class="status-line">
           <span class="beacon" :class="`state-${light}`" />
           <span class="label">{{ lightLabel }}</span>
-          <el-tooltip content="重新校验" placement="top">
+          <el-tooltip content="重新校验" placement="top" :hide-after="800">
             <el-button class="refresh" circle text :loading="loading" @click="fetchStatus">
               <el-icon :size="15"><Refresh /></el-icon>
             </el-button>

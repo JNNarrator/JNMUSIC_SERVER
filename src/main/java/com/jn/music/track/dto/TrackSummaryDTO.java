@@ -20,4 +20,6 @@ public class TrackSummaryDTO {
     private String album;
     private String coverUrl;
     private Integer duration;
+    private String format;
+    private Long fileSize;
 }

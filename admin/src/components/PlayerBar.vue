@@ -66,7 +66,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
 
     <div class="controls">
       <div class="btn-row">
-        <el-tooltip content="上一曲" placement="top">
+        <el-tooltip content="上一曲" placement="top" :hide-after="800">
           <el-button
             circle
             text
@@ -86,7 +86,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
           aria-label="播放或暂停"
           @click="player.toggle"
         />
-        <el-tooltip content="下一曲" placement="top">
+        <el-tooltip content="下一曲" placement="top" :hide-after="800">
           <el-button
             circle
             text
@@ -97,7 +97,7 @@ const modeMeta = computed(() => MODE_META[player.mode])
             @click="player.next(true)"
           />
         </el-tooltip>
-        <el-tooltip :content="modeMeta.label" placement="top">
+        <el-tooltip :content="modeMeta.label" placement="top" :hide-after="800">
           <el-button
             circle
             text

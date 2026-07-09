@@ -9,8 +9,7 @@ function detectInitial(): ThemeMode {
   if (typeof window === 'undefined') return 'dark'
   const saved = window.localStorage.getItem(STORAGE_KEY)
   if (saved === 'light' || saved === 'dark') return saved
-  const prefersLight = window.matchMedia?.('(prefers-color-scheme: light)').matches
-  return prefersLight ? 'light' : 'dark'
+  return 'dark'
 }
 
 function apply(mode: ThemeMode) {
