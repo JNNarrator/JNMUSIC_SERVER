@@ -443,14 +443,50 @@ public class LanzouApiClient {
     // ==================== 管理接口 ====================
 
     /** 分页列出目录下的文件与文件夹 */
+    /**
+     * 列出文件和文件夹（同时调用 task 5 和 task 47）
+     */
     public LanzouPageResult listFiles(String folderId, int page) {
         ensureUidVei();
-        String body = douploadPost(Map.of(
+        
+        // 获取文件列表 (task 5)
+        String filesBody = douploadPost(Map.of(
                 "task", TASK_LIST_FILES,
                 "folder_id", defaultFolder(folderId),
                 "pg", String.valueOf(page)));
-        JsonObject root = gson.fromJson(body, JsonObject.class);
-        return new LanzouPageResult(page, 20, parseFiles(root), parseFolders(root));
+        JsonObject filesRoot = gson.fromJson(filesBody, JsonObject.class);
+        List<LanzouFile> files = parseFiles(filesRoot);
+        
+        // 获取文件夹列表 (task 47) - 只在第一页时获取
+        List<LanzouFolder> folders = new ArrayList<>();
+        if (page == 1) {
+            String foldersBody = douploadPost(Map.of(
+                    "task", TASK_LIST_FOLDERS,
+                    "folder_id", defaultFolder(folderId)));
+            JsonObject foldersRoot = gson.fromJson(foldersBody, JsonObject.class);
+            folders = parseFoldersFromText(foldersRoot);
+        }
+        
+        return new LanzouPageResult(page, 20, files, folders);
+    }
+
+    /**
+     * 从 task 47 的响应中解析文件夹列表
+     * task 47 返回的 text 数组中，通过 fol_id 字段判断是否是文件夹
+     */
+    private List<LanzouFolder> parseFoldersFromText(JsonObject root) {
+        JsonArray arr = arrayOrEmpty(root, "text");
+        List<LanzouFolder> result = new ArrayList<>();
+        for (JsonElement el : arr) {
+            JsonObject o = el.getAsJsonObject();
+            String folId = str(o, "fol_id");
+            if (!folId.isEmpty()) {
+                // 这是文件夹
+                String name = str(o, "name");
+                result.add(new LanzouFolder(folId, name));
+            }
+        }
+        return result;
     }
 
     /** 列出文件夹列表 */
@@ -1372,9 +1408,29 @@ public class LanzouApiClient {
         List<LanzouFile> result = new ArrayList<>();
         for (JsonElement el : arr) {
             JsonObject o = el.getAsJsonObject();
-            result.add(new LanzouFile(str(o, "id"), str(o, "name_all"), 0L, str(o, "share_id")));
+            long size = parseSize(str(o, "size"));
+            result.add(new LanzouFile(str(o, "id"), str(o, "name_all"), size, str(o, "share_id")));
         }
         return result;
+    }
+
+    /** 解析蓝奏云文件大小格式（如 "34.4 M"、"4.0 K"）为字节数 */
+    private static long parseSize(String sizeStr) {
+        if (sizeStr == null || sizeStr.isBlank()) return 0L;
+        sizeStr = sizeStr.trim().toUpperCase();
+        try {
+            if (sizeStr.endsWith("M")) {
+                return (long) (Double.parseDouble(sizeStr.replace("M", "").trim()) * 1024 * 1024);
+            } else if (sizeStr.endsWith("K")) {
+                return (long) (Double.parseDouble(sizeStr.replace("K", "").trim()) * 1024);
+            } else if (sizeStr.endsWith("G")) {
+                return (long) (Double.parseDouble(sizeStr.replace("G", "").trim()) * 1024 * 1024 * 1024);
+            } else {
+                return Long.parseLong(sizeStr.replaceAll("[^0-9]", ""));
+            }
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     private List<LanzouFolder> parseFolders(JsonObject root) {

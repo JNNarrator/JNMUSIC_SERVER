@@ -49,9 +49,10 @@ public class TrackController {
     @GetMapping
     public ApiResponse<PageResponse<TrackSummaryDTO>> listTracks(
             @RequestParam(value = "page", defaultValue = "1") Integer page,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @RequestParam(value = "refresh", defaultValue = "false") Boolean refresh) {
         PageParams pageParams = normalizePageParams(page, pageSize, 20);
-        return ApiResponse.success(trackService.listTracks(pageParams.page(), pageParams.pageSize()));
+        return ApiResponse.success(trackService.listTracks(pageParams.page(), pageParams.pageSize(), refresh));
     }
 
     @GetMapping("/batch")
@@ -89,9 +90,10 @@ public class TrackController {
     @GetMapping("/app")
     public ApiResponse<PageResponse<TrackWithUrlDTO>> listTracksForApp(
             @RequestParam(value = "page", defaultValue = "1") Integer page,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
+            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @RequestParam(value = "refresh", defaultValue = "false") Boolean refresh) {
         PageParams pageParams = normalizePageParams(page, pageSize, 20);
-        return ApiResponse.success(trackService.listTracksWithUrl(pageParams.page(), pageParams.pageSize()));
+        return ApiResponse.success(trackService.listTracksWithUrl(pageParams.page(), pageParams.pageSize(), refresh));
     }
 
     /**
