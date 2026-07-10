@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
-import { ElButton, ElIcon, ElTooltip } from 'element-plus'
+import { computed, ref } from 'vue'
+import { ElIcon } from 'element-plus'
 import { Sunny, Moon } from '@element-plus/icons-vue'
 import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
@@ -23,12 +23,11 @@ if (typeof window !== 'undefined') {
 }
 
 const BASE_TITLE = 'JNMusic · 夜猫电台'
-watch(
-  () => player.currentTrack,
-  (t) => { document.title = t ? t.name + ' - ' + t.artist + ' | JNMusic' : BASE_TITLE },
-  { immediate: true }
-)
+
+// watch for title updates in PlayerPage
+
 const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' : '切到夜间模式'))
+const showThemeTooltip = ref(false)
 </script>
 
 <template>
@@ -50,11 +49,11 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
       </div>
       <div class="header-actions">
         <LanzouAuthPanel />
-        <el-tooltip :content="themeLabel" placement="bottom" :hide-after="800">
-          <el-button
+        <div class="theme-tooltip-wrapper"
+             @mouseenter="showThemeTooltip = true"
+             @mouseleave="showThemeTooltip = false">
+          <button
             class="theme-toggle"
-            circle
-            text
             :aria-label="themeLabel"
             @click="theme.toggle()"
           >
@@ -62,8 +61,9 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
               <Moon v-if="theme.mode === 'dark'" />
               <Sunny v-else />
             </el-icon>
-          </el-button>
-        </el-tooltip>
+          </button>
+          <div v-if="showThemeTooltip" class="theme-tooltip">{{ themeLabel }}</div>
+        </div>
       </div>
     </header>
 
@@ -117,19 +117,13 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 40px;
+  margin-bottom: 16px;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 14px;
-}
-
-.logo-dot {
-  font-size: 28px;
-  color: var(--jn-accent);
-  transform: translateY(-2px);
 }
 
 .brand-name {
@@ -177,18 +171,42 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
   flex-shrink: 0;
 }
 
+.theme-tooltip-wrapper {
+  position: relative;
+}
+
 .theme-toggle {
-  color: var(--jn-ink-dim) !important;
-  background: transparent !important;
-  border: 1px solid var(--jn-hair) !important;
-  width: 40px !important;
-  height: 40px !important;
+  color: var(--jn-ink-dim);
+  background: transparent;
+  border: 1px solid var(--jn-hair);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 .theme-toggle:hover {
-  color: var(--jn-accent) !important;
-  border-color: var(--jn-accent) !important;
+  color: var(--jn-accent);
+  border-color: var(--jn-accent);
   transform: rotate(-12deg);
+}
+
+.theme-tooltip {
+  position: absolute;
+  bottom: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--jn-tooltip-bg);
+  color: var(--jn-ink);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
 
 .stage {
@@ -204,7 +222,7 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
     padding: 16px 16px 0;
     overflow: hidden;
   }
-  .topbar { margin-bottom: 16px; gap: 12px; flex-shrink: 0; }
+  .topbar { margin-bottom: 8px; gap: 12px; flex-shrink: 0; }
   .stage {
     flex: 1 1 auto;
     min-height: 0;
@@ -215,6 +233,6 @@ const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' 
   .marquee { display: none; }
   .brand-name { font-size: 18px; }
   .brand-tag { font-size: 10.5px; }
-  .theme-toggle { width: 36px !important; height: 36px !important; }
+  .theme-toggle { width: 36px; height: 36px; }
 }
 </style>

@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { showToast } from 'vant'
+import { ElIcon } from 'element-plus'
 import { Search, VideoPlay, Refresh, Document } from '@element-plus/icons-vue'
 import { usePlayerStore, type Track } from '../stores/player'
+import { useThemeStore } from '../stores/theme'
 import LyricsPanel from './LyricsPanel.vue'
 
 const player = usePlayerStore()
+const theme = useThemeStore()
 const tracks = ref<Track[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -72,14 +75,13 @@ function retryFetch() {
 
 function playAll(startIndex = 0) {
   if (!tracks.value.length) {
-    ElMessage.warning('暂无可播放的曲目')
+    showToast('暂无可播放的曲目')
     return
   }
   player.setQueue(tracks.value, startIndex)
 }
 
 function onRowActivate(track: Track, idx: number) {
-  // 如果点击的是正在播放的歌曲，不做任何操作
   if (player.currentTrack?.trackId === track.trackId) {
     return
   }
@@ -194,127 +196,111 @@ onBeforeUnmount(() => {
   <section ref="pullRef" class="library">
     <header class="library-head">
       <div class="head-title">
-        <p class="eyebrow">// Tonight&rsquo;s Rotation</p>
+        <p class="eyebrow">// Tonight's Rotation</p>
         <h2>唱针落下之处</h2>
         <p class="lead">精选曲目，点开任意一行，整张歌单便成为你今晚的电台节目。</p>
       </div>
       <div class="head-actions">
-        <el-input
-          v-model="keyword"
-          class="search-input"
-          placeholder="搜索曲名或艺人"
-          :prefix-icon="Search"
-          clearable
-          @keyup.enter="onSearch"
-          @clear="onSearch"
-        />
-        <el-button
-          class="play-all"
-          type="primary"
-          round
-          :icon="VideoPlay"
-          :disabled="!tracks.length"
-          @click="playAll(0)"
-        >
-          播放全部
-        </el-button>
+        <div class="search-input">
+          <el-icon :size="16"><Search /></el-icon>
+          <input
+            v-model="keyword"
+            type="text"
+            placeholder="搜索曲名或艺人"
+            @keyup.enter="onSearch"
+          />
+        </div>
+        <button class="play-all" @click="playAll(0)" :disabled="!tracks.length">
+          <el-icon :size="16"><VideoPlay /></el-icon>
+          <span>播放全部</span>
+        </button>
       </div>
     </header>
 
-    <!-- 下拉指示器 -->
+    <!-- Pull indicator -->
     <div
       class="pull-indicator"
       :class="{ active: pullDistance >= PULL_THRESHOLD, refreshing }"
       :style="{ height: `${pullDistance}px` }"
     >
-      <el-icon :size="16"><Refresh /></el-icon>
-      <span v-if="refreshing">刷新中…</span>
-      <span v-else-if="pullDistance >= PULL_THRESHOLD">松手刷新</span>
+      <el-icon class="pull-icon"><Refresh /></el-icon>
+      <span v-if="refreshing">正在刷新…</span>
+      <span v-else-if="pullDistance >= PULL_THRESHOLD">释放刷新</span>
       <span v-else>下拉刷新</span>
     </div>
 
-    <!-- 骨架屏 -->
-    <div v-if="loading && !refreshing" class="skeleton">
-      <div v-for="n in pageSize" :key="n" class="row-skel">
-        <div class="skel-play" />
-        <div class="skel-main">
-          <div class="skel-name" />
-          <div class="skel-artist" />
-        </div>
-        <div class="skel-meta">
-          <div class="skel-tag" />
-        </div>
+    <!-- Track list -->
+    <div
+      ref="scrollRef"
+      class="track-scroll"
+      @scroll="onScroll"
+    >
+      <!-- Loading skeleton -->
+      <div v-if="loading" class="skeleton">
+        <div v-for="n in 5" :key="n" class="skeleton-row" />
       </div>
-    </div>
 
-    <!-- 错误状态 -->
-    <div v-else-if="error" class="error-state">
-      <p class="error-text">{{ error }}</p>
-      <el-button
-        class="retry-btn"
-        type="primary"
-        round
-        :icon="Refresh"
-        @click="retryFetch"
-      >
-        重新加载
-      </el-button>
-    </div>
+      <!-- Error state -->
+      <div v-else-if="error" class="error-state">
+        <p>{{ error }}</p>
+        <button class="retry-btn" @click="retryFetch">
+          <el-icon><Refresh /></el-icon>
+          <span>重试</span>
+        </button>
+      </div>
 
-    <!-- 空状态 -->
-    <div v-else-if="!tracks.length && !loading" class="empty">
-      <p>暂无曲目</p>
-    </div>
+      <!-- Empty state -->
+      <div v-else-if="!tracks.length" class="empty-state">
+        <p>暂无曲目</p>
+      </div>
 
-    <!-- 歌曲列表 -->
-    <div v-else ref="scrollRef" class="track-scroll" @scroll="onScroll">
-      <ol class="track-rows">
-        <li
+      <!-- Track rows -->
+      <div v-else class="track-rows">
+        <div
           v-for="(track, idx) in tracks"
           :key="track.trackId"
           class="row"
           :class="{ active: player.currentTrack?.trackId === track.trackId }"
           @click="onRowActivate(track, idx)"
         >
-          <button class="row-play" @click.stop="onRowActivate(track, idx)">
+          <div class="row-play">
             <span v-if="player.currentTrack?.trackId === track.trackId && player.isPlaying" class="wave">
-              <i /><i /><i /><i />
+              <i /><i /><i /><i /><i />
             </span>
-            <span v-else class="num">{{ (page - 1) * pageSize + idx + 1 }}</span>
-            <span class="hover-play"><el-icon><VideoPlay /></el-icon></span>
-          </button>
-
+            <span v-else class="num">{{ idx + 1 }}</span>
+            <span class="hover-play">
+              <el-icon :size="16"><VideoPlay /></el-icon>
+            </span>
+          </div>
           <div class="row-main">
             <p class="row-name">{{ track.name }}</p>
             <p class="row-artist">{{ track.artist || '未知艺人' }}</p>
           </div>
-
           <div class="row-meta">
             <span v-if="track.format" class="tag">{{ track.format.toUpperCase() }}</span>
-            <span v-if="track.fileSize" class="size">{{ formatSize(track.fileSize) }}</span>
+            <span class="size">{{ formatSize(track.fileSize) }}</span>
             <button
               v-if="track.hasLyric"
               class="lyrics-btn"
-              title="查看歌词"
               @click.stop="openLyrics(track.trackId, track.name)"
             >
               <el-icon :size="14"><Document /></el-icon>
             </button>
           </div>
-        </li>
-      </ol>
+        </div>
+      </div>
 
-      <!-- 分页 -->
+      <!-- Load more -->
       <div v-if="loadingMore" class="load-more">
         <el-icon class="spin"><Refresh /></el-icon>
         <span>加载中…</span>
       </div>
-      <div v-else-if="!hasMore && tracks.length > 0" class="load-more">
-        <span class="no-more">— 到底了 —</span>
+      <div v-else-if="!hasMore && tracks.length > 0" class="load-more no-more">
+        <span>没有更多了</span>
       </div>
     </div>
 
-    <!-- 歌词面板 -->
+    <!-- Lyrics Panel -->
     <LyricsPanel
       v-model:visible="showLyrics"
       :track-id="lyricsTrackId"
@@ -326,108 +312,206 @@ onBeforeUnmount(() => {
 <style scoped>
 .library {
   position: relative;
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 0 24px calc(140px + env(safe-area-inset-bottom));
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .library-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 60px 0 32px;
+  flex-shrink: 0;
+  padding: 0 0 16px;
 }
 
-.head-title { flex: 1; min-width: 0; }
-.head-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.head-title {
+  margin-bottom: 16px;
+}
 
-.search-input { width: 240px; }
+.eyebrow {
+  margin: 0 0 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--jn-ink-dim);
+  text-transform: uppercase;
+}
+
+.head-title h2 {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-weight: 500;
+  font-style: italic;
+  font-size: clamp(30px, 4.2vw, 52px);
+  line-height: 1.02;
+  color: var(--jn-ink-strong);
+}
+
+.lead {
+  margin: 12px 0 0;
+  max-width: 42ch;
+  color: var(--jn-ink-dim);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 320px;
+  min-width: 180px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--jn-hair);
+  border-radius: 999px;
+  background: var(--jn-input-bg);
+  transition: border-color 0.15s;
+}
+.search-input:focus-within {
+  border-color: var(--jn-accent);
+}
+.search-input input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--jn-ink);
+  font-size: 13px;
+}
+.search-input input::placeholder {
+  color: var(--jn-ink-muted);
+}
+.search-input .el-icon {
+  color: var(--jn-ink-dim);
+  flex-shrink: 0;
+}
 
 .play-all {
-  color: var(--jn-accent-ink) !important;
-  font-weight: 600 !important;
-  padding: 10px 20px !important;
-  box-shadow: 0 12px 30px var(--jn-glow);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--jn-accent);
+  color: var(--jn-accent-ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 8px 24px var(--jn-glow);
+}
+.play-all:hover:not(:disabled) {
+  transform: scale(1.04);
+  box-shadow: 0 12px 32px var(--jn-glow);
+}
+.play-all:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.play-all:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
-.skeleton { display: grid; gap: 0; border-top: 1px solid var(--jn-hair); }
-.row-skel {
-  display: grid;
-  grid-template-columns: 44px 1fr auto;
+/* Pull indicator */
+.pull-indicator {
+  display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 6px;
-  border-bottom: 1px solid var(--jn-hair);
+  justify-content: center;
+  gap: 8px;
+  height: 0;
+  overflow: hidden;
+  color: var(--jn-ink-dim);
+  font-size: 13px;
+  transition: height 0.25s ease;
 }
-.skel-play {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
-  background-size: 200% 100%;
-  animation: skel 1.4s linear infinite;
+.pull-indicator.active {
+  color: var(--jn-accent);
 }
-.skel-main {
+.pull-indicator.refreshing .pull-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Track scroll */
+.track-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.track-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Skeleton */
+.skeleton {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+  padding: 12px 0;
 }
-.skel-name {
-  height: 16px;
-  width: 60%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
-  background-size: 200% 100%;
-  animation: skel 1.4s linear infinite;
+.skeleton-row {
+  height: 52px;
+  background: var(--jn-row-hover);
+  border-radius: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
 }
-.skel-artist {
-  height: 12px;
-  width: 40%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
-  background-size: 200% 100%;
-  animation: skel 1.4s linear infinite;
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
-.skel-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.skel-tag {
-  width: 40px;
-  height: 20px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--jn-row-hover), var(--jn-hair), var(--jn-row-hover));
-  background-size: 200% 100%;
-  animation: skel 1.4s linear infinite;
-}
-@keyframes skel { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
-@keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
 
+/* Error state */
 .error-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  padding: 80px 0;
+  gap: 16px;
+  padding: 48px 0;
+  color: var(--jn-ink-dim);
 }
-
-.error-text {
-  font-size: 15px;
-  color: var(--jn-danger);
-  font-family: 'IBM Plex Mono', monospace;
-}
-
 .retry-btn {
-  color: var(--jn-accent-ink) !important;
-  font-weight: 600 !important;
-  box-shadow: 0 8px 24px var(--jn-glow);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--jn-hair);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--jn-ink);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.retry-btn:hover {
+  background: var(--jn-row-hover);
 }
 
+/* Empty state */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0;
+  color: var(--jn-ink-muted);
+  font-size: 14px;
+}
+
+/* Track rows */
 .track-rows {
-  list-style: none; padding: 0; margin: 0;
   border-top: 1px solid var(--jn-hair);
 }
 
@@ -474,7 +558,6 @@ onBeforeUnmount(() => {
 }
 .row:hover .row-play .num { visibility: hidden; }
 .row:hover .row-play .hover-play { display: inline-flex; }
-/* 播放中的行，悬停时隐藏hover-play，避免和wave重叠 */
 .row.active:hover .row-play .hover-play { display: none; }
 .row.active:hover .row-play .num { visibility: visible; }
 .row.active .row-play { color: var(--jn-accent); }
@@ -550,62 +633,6 @@ onBeforeUnmount(() => {
 .spin { animation: spin 0.8s linear infinite; }
 .no-more { color: var(--jn-ink-muted); }
 
-.empty {
-  padding: 40px 0;
-  text-align: center;
-  color: var(--jn-ink-muted);
-}
-
-.track-scroll {
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.track-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.pull-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  overflow: hidden;
-  color: var(--jn-ink-dim);
-  font-size: 13px;
-  transition: height 0.25s ease;
-}
-.pull-indicator.active { color: var(--jn-accent); }
-.pull-indicator.refreshing :deep(.el-icon) { animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.eyebrow {
-  margin: 0 0 8px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  color: var(--jn-ink-dim);
-  text-transform: uppercase;
-}
-
-.head-title h2 {
-  margin: 0;
-  font-family: 'Fraunces', serif;
-  font-weight: 500;
-  font-style: italic;
-  font-size: clamp(30px, 4.2vw, 52px);
-  line-height: 1.02;
-  color: var(--jn-ink-strong);
-}
-
-.lead {
-  margin: 12px 0 0;
-  max-width: 42ch;
-  color: var(--jn-ink-dim);
-  font-size: 14.5px;
-  line-height: 1.55;
-}
-
 @media (max-width: 720px) {
   .library { 
     padding: 0 16px 0;
@@ -619,7 +646,7 @@ onBeforeUnmount(() => {
     flex-direction: column;
     align-items: stretch;
     gap: 16px;
-    padding: 40px 0 24px;
+    padding: 32px 0 16px;
     flex-shrink: 0;
   }
   .head-actions { width: 100%; }
