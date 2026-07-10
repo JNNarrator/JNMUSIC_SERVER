@@ -10,6 +10,9 @@ import com.jn.music.track.dto.MediaUrlDTO;
 import com.jn.music.track.dto.TrackDTO;
 import com.jn.music.track.dto.TrackSummaryDTO;
 import com.jn.music.track.dto.TrackWithUrlDTO;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,9 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * P0 音乐库接口实现。
- */
+@Tag(name = "音乐库", description = "音乐库相关接口")
 @RestController
 @RequestMapping("/api/v1/tracks")
 public class TrackController {
@@ -34,11 +35,12 @@ public class TrackController {
         this.trackService = trackService;
     }
 
+    @Operation(summary = "搜索歌曲", description = "根据关键词搜索歌曲")
     @GetMapping("/search")
     public ApiResponse<PageResponse<TrackSummaryDTO>> searchTracks(
-            @RequestParam("q") String q,
-            @RequestParam(value = "page", defaultValue = "1") Integer page,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
+            @Parameter(description = "搜索关键词") @RequestParam("q") String q,
+            @Parameter(description = "页码") @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @Parameter(description = "每页数量") @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
         String keyword = trimToEmpty(q);
         if (keyword.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "搜索关键词不能为空");
@@ -47,17 +49,20 @@ public class TrackController {
         return ApiResponse.success(trackService.searchTracks(keyword, pageParams.page(), pageParams.pageSize()));
     }
 
+    @Operation(summary = "获取歌曲列表", description = "分页获取歌曲列表")
     @GetMapping
     public ApiResponse<PageResponse<TrackSummaryDTO>> listTracks(
-            @RequestParam(value = "page", defaultValue = "1") Integer page,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
-            @RequestParam(value = "refresh", defaultValue = "false") Boolean refresh) {
+            @Parameter(description = "页码") @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @Parameter(description = "每页数量") @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @Parameter(description = "是否刷新缓存") @RequestParam(value = "refresh", defaultValue = "false") Boolean refresh) {
         PageParams pageParams = normalizePageParams(page, pageSize, 20);
         return ApiResponse.success(trackService.listTracks(pageParams.page(), pageParams.pageSize(), refresh));
     }
 
+    @Operation(summary = "批量获取歌曲", description = "根据ID批量获取歌曲信息")
     @GetMapping("/batch")
-    public ApiResponse<PageResponse<TrackDTO>> getTracksByIds(@RequestParam("ids") List<String> ids) {
+    public ApiResponse<PageResponse<TrackDTO>> getTracksByIds(
+            @Parameter(description = "歌曲ID列表，逗号分隔") @RequestParam("ids") List<String> ids) {
         List<String> normalizedIds = normalizeTrackIds(ids);
         if (normalizedIds.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "ids 不能为空");
@@ -68,22 +73,24 @@ public class TrackController {
         return ApiResponse.success(trackService.getTracksByIds(normalizedIds));
     }
 
+    @Operation(summary = "获取歌曲详情", description = "根据ID获取歌曲详情")
     @GetMapping("/{trackId}")
-    public ApiResponse<TrackDTO> getTrackById(@PathVariable("trackId") String trackId) {
+    public ApiResponse<TrackDTO> getTrackById(
+            @Parameter(description = "歌曲ID") @PathVariable("trackId") String trackId) {
         return ApiResponse.success(trackService.getTrackById(trackId));
     }
 
+    @Operation(summary = "获取播放链接", description = "获取歌曲的播放直链")
     @GetMapping("/{trackId}/media-url")
     public ApiResponse<MediaUrlDTO> getMediaUrl(
-            @PathVariable("trackId") String trackId) {
+            @Parameter(description = "歌曲ID") @PathVariable("trackId") String trackId) {
         return ApiResponse.success(trackService.getMediaUrl(trackId));
     }
 
-    /**
-     * 批量获取播放直链
-     */
+    @Operation(summary = "批量获取播放链接", description = "批量获取歌曲的播放直链")
     @GetMapping("/media-urls")
-    public ApiResponse<Map<String, MediaUrlDTO>> getMediaUrls(@RequestParam("ids") List<String> ids) {
+    public ApiResponse<Map<String, MediaUrlDTO>> getMediaUrls(
+            @Parameter(description = "歌曲ID列表，逗号分隔") @RequestParam("ids") List<String> ids) {
         List<String> normalizedIds = normalizeTrackIds(ids);
         if (normalizedIds.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "ids 不能为空");
@@ -94,33 +101,29 @@ public class TrackController {
         return ApiResponse.success(trackService.getMediaUrls(normalizedIds));
     }
 
+    @Operation(summary = "获取歌词", description = "获取歌曲的歌词内容")
     @GetMapping("/{trackId}/lyrics")
-    public ApiResponse<String> getLyrics(@PathVariable("trackId") String trackId) {
+    public ApiResponse<String> getLyrics(
+            @Parameter(description = "歌曲ID") @PathVariable("trackId") String trackId) {
         return ApiResponse.success(trackService.getLyrics(trackId));
     }
 
-    /**
-     * APP专用接口：返回带播放直链的歌曲列表。
-     * 适用于APP直接播放场景，避免二次请求。
-     */
+    @Operation(summary = "获取歌曲列表(APP)", description = "返回带播放直链的歌曲列表，适用于APP直接播放")
     @GetMapping("/app")
     public ApiResponse<PageResponse<TrackWithUrlDTO>> listTracksForApp(
-            @RequestParam(value = "page", defaultValue = "1") Integer page,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
-            @RequestParam(value = "refresh", defaultValue = "false") Boolean refresh) {
+            @Parameter(description = "页码") @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @Parameter(description = "每页数量") @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+            @Parameter(description = "是否刷新缓存") @RequestParam(value = "refresh", defaultValue = "false") Boolean refresh) {
         PageParams pageParams = normalizePageParams(page, pageSize, 20);
         return ApiResponse.success(trackService.listTracksWithUrl(pageParams.page(), pageParams.pageSize(), refresh));
     }
 
-    /**
-     * APP专用接口：搜索带播放直链的歌曲。
-     * 适用于APP直接播放场景，避免二次请求。
-     */
+    @Operation(summary = "搜索歌曲(APP)", description = "搜索带播放直链的歌曲，适用于APP直接播放")
     @GetMapping("/app/search")
     public ApiResponse<PageResponse<TrackWithUrlDTO>> searchTracksForApp(
-            @RequestParam("q") String q,
-            @RequestParam(value = "page", defaultValue = "1") Integer page,
-            @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
+            @Parameter(description = "搜索关键词") @RequestParam("q") String q,
+            @Parameter(description = "页码") @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @Parameter(description = "每页数量") @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
         String keyword = trimToEmpty(q);
         if (keyword.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "搜索关键词不能为空");

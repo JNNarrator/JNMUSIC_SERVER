@@ -23,10 +23,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -49,7 +50,6 @@ public class TrackServiceImpl implements TrackService {
             return new ParsedName(splitCamelCase(text), null, audioFile != null ? getExtension(audioFile.name()) : "", false);
         }
 
-        /** 驼峰转空格：TheNights -> The Nights */
         private static String splitCamelCase(String s) {
             if (s == null) return "";
             StringBuilder sb = new StringBuilder();
@@ -76,18 +76,6 @@ public class TrackServiceImpl implements TrackService {
     );
     private static final String ROOT_FOLDER_ID = "-1";
     private static final int MAX_PAGES = 20;
-    private static final Duration SONG_FOLDERS_TTL = Duration.ofMinutes(5);
-    private static final Duration LYRICS_TTL = Duration.ofHours(3).plusMinutes(30);
-
-    private static final okhttp3.OkHttpClient sharedLyricsClient = new okhttp3.OkHttpClient.Builder()
-            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-            .build();
-
-    private volatile List<SongFolder> cachedSongFolders;
-    private volatile Instant songFoldersExpiresAt = Instant.EPOCH;
-    private final ConcurrentHashMap<String, String> lyricsCache = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Instant> lyricsCacheExpiry = new ConcurrentHashMap<>();
 
     private final MusicStorage musicStorage;
 
@@ -101,8 +89,8 @@ public class TrackServiceImpl implements TrackService {
     }
 
     @Override
+    @CacheEvict(value = "songFolders", allEntries = true, condition = "#refresh")
     public PageResponse<TrackSummaryDTO> listTracks(Integer page, Integer pageSize, boolean refresh) {
-        if (refresh) clearSongFoldersCache();
         return paginate(loadAllAudioSummaries(), normalize(page, 1), normalize(pageSize, 20));
     }
 
@@ -150,6 +138,7 @@ public class TrackServiceImpl implements TrackService {
     }
 
     @Override
+    @Cacheable(value = "mediaUrls", key = "#trackId")
     public MediaUrlDTO getMediaUrl(String trackId) {
         String id = requireTrackId(trackId);
         String format = "";
@@ -180,28 +169,16 @@ public class TrackServiceImpl implements TrackService {
     }
 
     @Override
+    @Cacheable(value = "lyrics", key = "#trackId")
     public String getLyrics(String trackId) {
         String id = requireTrackId(trackId);
-        Instant expiry = lyricsCacheExpiry.get(id);
-        if (expiry != null && Instant.now().isBefore(expiry)) {
-            String cached = lyricsCache.get(id);
-            if (cached != null) {
-                if (cached.isEmpty()) throw new BusinessException(ErrorCode.TRACK_NOT_FOUND, "该歌曲暂无歌词");
-                return cached;
-            }
-        }
         for (SongFolder sf : loadSongFolders()) {
             if (id.equals(sf.audioFile().id())) {
                 if (sf.lyricFile() == null) {
-                    lyricsCache.put(id, "");
-                    lyricsCacheExpiry.put(id, Instant.now().plus(LYRICS_TTL));
                     throw new BusinessException(ErrorCode.TRACK_NOT_FOUND, "该歌曲暂无歌词");
                 }
                 try {
-                    String lyrics = downloadText(musicStorage.getDownloadUrl(sf.lyricFile().id()));
-                    lyricsCache.put(id, lyrics);
-                    lyricsCacheExpiry.put(id, Instant.now().plus(LYRICS_TTL));
-                    return lyrics;
+                    return downloadText(musicStorage.getDownloadUrl(sf.lyricFile().id()));
                 } catch (Exception e) {
                     throw new BusinessException(ErrorCode.INTERNAL_ERROR, "获取歌词失败: " + e.getMessage());
                 }
@@ -216,8 +193,8 @@ public class TrackServiceImpl implements TrackService {
     }
 
     @Override
+    @CacheEvict(value = "songFolders", allEntries = true, condition = "#refresh")
     public PageResponse<TrackWithUrlDTO> listTracksWithUrl(Integer page, Integer pageSize, boolean refresh) {
-        if (refresh) clearSongFoldersCache();
         return paginate(loadAllAudioWithUrl(), normalize(page, 1), normalize(pageSize, 20));
     }
 
@@ -235,18 +212,10 @@ public class TrackServiceImpl implements TrackService {
         return paginate(matched, normalize(page, 1), normalize(pageSize, 20));
     }
 
-    private void clearSongFoldersCache() {
-        cachedSongFolders = null;
-        songFoldersExpiresAt = Instant.EPOCH;
-    }
-
-    private List<SongFolder> loadSongFolders() {
-        Instant now = Instant.now();
-        if (cachedSongFolders != null && now.isBefore(songFoldersExpiresAt)) return cachedSongFolders;
+    @Cacheable(value = "songFolders", key = "'all'")
+    public List<SongFolder> loadSongFolders() {
         List<SongFolder> folders = new ArrayList<>();
         loadSongFoldersRecursively(ROOT_FOLDER_ID, folders);
-        cachedSongFolders = folders;
-        songFoldersExpiresAt = now.plus(SONG_FOLDERS_TTL);
         return folders;
     }
 
@@ -309,6 +278,11 @@ public class TrackServiceImpl implements TrackService {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "下载失败: " + e.getMessage());
         }
     }
+
+    private static final okhttp3.OkHttpClient sharedLyricsClient = new okhttp3.OkHttpClient.Builder()
+            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .build();
 
     private static <T> PageResponse<T> paginate(List<T> all, int page, int pageSize) {
         int total = all.size(), from = Math.min((page - 1) * pageSize, total), to = Math.min(from + pageSize, total);
