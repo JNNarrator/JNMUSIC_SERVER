@@ -2,7 +2,6 @@
   "name": "JNMusic - 音乐播放器",
   "short_name": "JNMusic",
   "description": "一个简洁优雅的在线音乐播放器",
-  "start_url": "/",
   "display": "standalone",
   "background_color": "#100c11",
   "theme_color": "#f2b134",

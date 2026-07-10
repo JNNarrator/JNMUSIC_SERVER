@@ -23,6 +23,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
+        // 根路径直接访问音乐页面（原来需要 /admin/ 后缀）
+        registry.addViewController("/").setViewName("forward:/index.html");
         // 核心：无尾斜杠入口统一重定向，避免相对静态资源被浏览器解析到 /music/assets。
         registry.addViewController("/admin").setViewName("redirect:/admin/");
         registry.addViewController("/admin/").setViewName("forward:/admin/index.html");
