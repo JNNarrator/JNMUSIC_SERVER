@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { ElIcon } from 'element-plus'
 import {
   VideoPlay,
   VideoPause,
@@ -24,15 +25,12 @@ function fmt(seconds: number) {
   return `${m}:${r.toString().padStart(2, '0')}`
 }
 
-const progress = computed({
-  get: () => player.currentTime,
-  set: (v: number) => player.seek(v),
+const progressPercent = computed(() => {
+  if (!player.duration) return 0
+  return (player.currentTime / player.duration) * 100
 })
 
-const volumeValue = computed({
-  get: () => Math.round(player.volume * 100),
-  set: (v: number) => player.setVolume(v / 100),
-})
+const volumePercent = computed(() => player.volume * 100)
 
 const MODE_META: Record<PlayMode, { label: string; icon: any }> = {
   list: { label: '列表循环', icon: RefreshRight },
@@ -42,10 +40,69 @@ const MODE_META: Record<PlayMode, { label: string; icon: any }> = {
 
 const modeMeta = computed(() => MODE_META[player.mode])
 
+// Tooltips
+const showPrevTooltip = ref(false)
+const showNextTooltip = ref(false)
+const showModeTooltip = ref(false)
+
+// Progress drag
+const isDragging = ref(false)
+const progressRef = ref<HTMLElement | null>(null)
+
+function onProgressClick(e: MouseEvent) {
+  if (!player.currentTrack || !progressRef.value) return
+  const rect = progressRef.value.getBoundingClientRect()
+  const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+  player.seek(percent * player.duration)
+}
+
+function onProgressMouseDown(e: MouseEvent) {
+  isDragging.value = true
+  onProgressClick(e)
+  
+  const onMouseMove = (e: MouseEvent) => {
+    if (isDragging.value) onProgressClick(e)
+  }
+  const onMouseUp = () => {
+    isDragging.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+// Progress tooltip
+const showProgressTooltip = ref(false)
+const tooltipTime = ref('')
+const tooltipPosition = ref(0)
+
+function onProgressHover(e: MouseEvent) {
+  if (!player.currentTrack || !progressRef.value) return
+  const rect = progressRef.value.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const percent = Math.max(0, Math.min(1, x / rect.width))
+  tooltipTime.value = fmt(percent * player.duration)
+  tooltipPosition.value = x
+  showProgressTooltip.value = true
+}
+
+function onProgressMove(e: MouseEvent) {
+  if (!showProgressTooltip.value) return
+  const rect = progressRef.value!.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const percent = Math.max(0, Math.min(1, x / rect.width))
+  tooltipTime.value = fmt(percent * player.duration)
+  tooltipPosition.value = x
+}
+
+function onProgressLeave() {
+  showProgressTooltip.value = false
+}
+
 function onBarClick(e: MouseEvent) {
-  // 如果点击的目标是按钮或其子元素，不打开全屏页
   const target = e.target as HTMLElement
-  if (target.closest('.ctl-btn') || target.closest('.el-slider') || target.closest('.volume')) return
+  if (target.closest('.ctl-btn') || target.closest('.progress') || target.closest('.volume')) return
   ui.openPlayerPage()
 }
 
@@ -55,7 +112,7 @@ function onCapsuleClick() {
 </script>
 
 <template>
-  <!-- 胶囊模式：全屏页打开时显示 -->
+  <!-- 胶囊模式 -->
   <Transition name="capsule">
     <div
       v-if="ui.showPlayerPage && player.currentTrack"
@@ -72,7 +129,7 @@ function onCapsuleClick() {
     </div>
   </Transition>
 
-  <!-- 正常 PlayerBar：全屏页关闭时显示 -->
+  <!-- PlayerBar -->
   <footer
     v-show="!ui.showPlayerPage"
     class="player-bar"
@@ -99,106 +156,107 @@ function onCapsuleClick() {
 
     <div class="controls">
       <div class="btn-row">
-        <el-tooltip content="上一曲" placement="top" :hide-after="800">
-          <el-button
-            circle
-            text
+        <div class="tooltip-wrapper"
+             @mouseenter="showPrevTooltip = true"
+             @mouseleave="showPrevTooltip = false">
+          <button
             class="ctl-btn"
-            :icon="DArrowLeft"
             aria-label="上一曲"
             :disabled="!player.queue.length"
             @click.stop="player.prev"
-          />
-        </el-tooltip>
-        <el-button
-          circle
+          >
+            <el-icon :size="18"><DArrowLeft /></el-icon>
+          </button>
+          <div v-if="showPrevTooltip" class="tooltip">上一曲</div>
+        </div>
+
+        <button
           class="ctl-btn primary"
-          :icon="player.isPlaying ? VideoPause : VideoPlay"
-          :loading="player.loading"
+          :class="{ loading: player.loading }"
           :disabled="!player.currentTrack"
           aria-label="播放或暂停"
           @click.stop="player.toggle"
-        />
-        <el-tooltip content="下一曲" placement="top" :hide-after="800">
-          <el-button
-            circle
-            text
+        >
+          <el-icon :size="20">
+            <VideoPause v-if="player.isPlaying" />
+            <VideoPlay v-else />
+          </el-icon>
+        </button>
+
+        <div class="tooltip-wrapper"
+             @mouseenter="showNextTooltip = true"
+             @mouseleave="showNextTooltip = false">
+          <button
             class="ctl-btn"
-            :icon="DArrowRight"
             aria-label="下一曲"
             :disabled="!player.queue.length"
             @click.stop="player.next(true)"
-          />
-        </el-tooltip>
-        <el-tooltip :content="modeMeta.label" placement="top" :hide-after="800">
-          <el-button
-            circle
-            text
+          >
+            <el-icon :size="18"><DArrowRight /></el-icon>
+          </button>
+          <div v-if="showNextTooltip" class="tooltip">下一曲</div>
+        </div>
+
+        <div class="tooltip-wrapper"
+             @mouseenter="showModeTooltip = true"
+             @mouseleave="showModeTooltip = false">
+          <button
             class="ctl-btn mode-btn"
             :class="{ active: true, ['mode-' + player.mode]: true }"
-            :icon="modeMeta.icon"
             :aria-label="'播放模式：' + modeMeta.label"
             @click.stop="player.cyclePlayMode"
           >
+            <el-icon :size="16"><component :is="modeMeta.icon" /></el-icon>
             <span v-if="player.mode === 'one'" class="badge">1</span>
-          </el-button>
-        </el-tooltip>
+          </button>
+          <div v-if="showModeTooltip" class="tooltip">{{ modeMeta.label }}</div>
+        </div>
       </div>
 
-      <div class="progress" @click.stop>
+      <div class="progress"
+           ref="progressRef"
+           @click.stop
+           @mousedown="onProgressMouseDown"
+           @mouseenter="onProgressHover"
+           @mousemove="onProgressMove"
+           @mouseleave="onProgressLeave">
         <span class="time">{{ fmt(player.currentTime) }}</span>
-        <el-slider
-          v-model="progress"
-          class="progress-slider"
-          :min="0"
-          :max="Math.max(0.1, player.duration)"
-          :step="0.1"
-          :show-tooltip="false"
-          :disabled="!player.currentTrack"
-        />
+        <div class="progress-bar">
+          <div class="progress-fill" :style="{ width: progressPercent + '%' }" />
+          <div class="progress-thumb" :style="{ left: progressPercent + '%' }" />
+        </div>
         <span class="time">{{ fmt(player.duration) }}</span>
+        <div v-if="showProgressTooltip" class="progress-tooltip" :style="{ left: tooltipPosition + 'px' }">
+          {{ tooltipTime }}
+        </div>
       </div>
     </div>
 
     <div class="volume" @click.stop>
-      <el-icon :size="18" class="vol-icon" aria-hidden="true"><Mute /></el-icon>
-      <el-slider
-        v-model="volumeValue"
-        class="volume-slider"
-        :min="0"
-        :max="100"
-        :show-tooltip="false"
-        aria-label="音量"
-      />
+      <el-icon :size="16" class="vol-icon"><Mute /></el-icon>
+      <div class="volume-bar"
+           @mousedown="(e: MouseEvent) => {
+             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+             player.setVolume(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)))
+           }">
+        <div class="volume-fill" :style="{ width: volumePercent + '%' }" />
+      </div>
     </div>
   </footer>
 </template>
 
 <style scoped>
-/* 胶囊动画 */
-.capsule-enter-active,
-.capsule-leave-active {
-  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.capsule-enter-from {
-  opacity: 0;
-  transform: scale(0.4) translateY(40px);
-}
-.capsule-leave-to {
-  opacity: 0;
-  transform: scale(0.4) translateY(40px);
-}
-
+/* 胶囊 */
 .capsule {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 45;
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   cursor: pointer;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  z-index: 41;
+  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
   transition: transform 0.2s ease;
 }
 .capsule:hover { transform: scale(1.08); }
@@ -313,26 +371,44 @@ function onCapsuleClick() {
   gap: 6px;
 }
 
+.tooltip-wrapper { position: relative; }
+
+.tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  background: var(--jn-tooltip-bg);
+  color: var(--jn-ink);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  pointer-events: none;
+}
+
 .ctl-btn {
-  color: var(--jn-ink-dim) !important;
-  background: transparent !important;
-  border: none !important;
-  width: 36px !important;
-  height: 36px !important;
+  color: var(--jn-ink-dim);
+  background: transparent;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: color 0.15s ease, transform 0.15s ease;
-  position: relative;
 }
-.ctl-btn:hover { color: var(--jn-ink-strong) !important; }
-.mode-btn.active { color: var(--jn-accent) !important; }
-.ctl-btn.primary {
-  background: var(--jn-accent) !important;
-  color: var(--jn-accent-ink) !important;
-  width: 44px !important;
-  height: 44px !important;
-  box-shadow: 0 10px 24px var(--jn-glow);
-}
-.ctl-btn.primary:hover { transform: scale(1.03); }
-.ctl-btn .badge {
+.ctl-btn:hover:not(:disabled) { color: var(--jn-ink-strong); }
+.ctl-btn:active:not(:disabled) { transform: scale(0.92); }
+.ctl-btn:disabled { opacity: 0.3; cursor: default; }
+
+.mode-btn.active { color: var(--jn-accent); }
+.mode-btn .badge {
   position: absolute;
   top: 4px; right: 4px;
   font-size: 8px;
@@ -344,6 +420,23 @@ function onCapsuleClick() {
   line-height: 1.4;
 }
 
+.ctl-btn.primary {
+  background: var(--jn-accent);
+  color: var(--jn-accent-ink);
+  width: 44px;
+  height: 44px;
+  box-shadow: 0 10px 24px var(--jn-glow);
+  transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.15s ease;
+}
+.ctl-btn.primary:hover:not(:disabled) {
+  transform: scale(1.08);
+  box-shadow: 0 14px 32px var(--jn-glow);
+}
+.ctl-btn.primary:active:not(:disabled) {
+  transform: scale(0.92);
+  box-shadow: 0 6px 16px var(--jn-glow);
+}
+
 .progress {
   display: grid;
   grid-template-columns: 40px 1fr 40px;
@@ -351,6 +444,7 @@ function onCapsuleClick() {
   gap: 10px;
   width: 100%;
   max-width: 520px;
+  position: relative;
 }
 .progress .time {
   font-family: 'IBM Plex Mono', monospace;
@@ -358,7 +452,53 @@ function onCapsuleClick() {
   color: var(--jn-ink-dim);
   text-align: center;
 }
-.progress-slider { width: 100%; }
+
+.progress-bar {
+  position: relative;
+  height: 4px;
+  background: var(--jn-slider-track);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--jn-accent), var(--jn-accent-strong));
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  background: var(--jn-slider-thumb-fill);
+  border: 2px solid var(--jn-accent);
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.progress:hover .progress-thumb { opacity: 1; }
+
+.progress-tooltip {
+  position: absolute;
+  top: -32px;
+  transform: translateX(-50%);
+  background: var(--jn-bg-elev);
+  color: var(--jn-ink-strong);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 10;
+}
 
 .volume {
   display: flex;
@@ -367,7 +507,23 @@ function onCapsuleClick() {
   justify-content: flex-end;
 }
 .vol-icon { color: var(--jn-ink-dim); }
-.volume-slider { width: 120px; }
+
+.volume-bar {
+  position: relative;
+  width: 120px;
+  height: 4px;
+  background: var(--jn-slider-track);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.volume-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--jn-accent);
+  border-radius: 2px;
+}
 
 /* 移动端 */
 @media (max-width: 720px) {
@@ -391,8 +547,8 @@ function onCapsuleClick() {
     gap: 8px;
     max-width: none;
   }
-  .ctl-btn { width: 34px !important; height: 34px !important; }
-  .ctl-btn.primary { width: 40px !important; height: 40px !important; }
+  .ctl-btn { width: 34px; height: 34px; }
+  .ctl-btn.primary { width: 40px; height: 40px; }
   .volume { display: none; }
 }
 </style>

@@ -1,4 +1,4 @@
-/* 主题变量：暖橙 accent 贯穿 light/dark 两种模式，替换 Element Plus 蓝色主色。 */
+/* 主题变量：暖橙 accent 贯穿 light/dark 两种模式 */
 :root,
 :root[data-theme='dark'] {
   color-scheme: dark;
@@ -34,26 +34,24 @@
   --jn-cover-groove: rgba(246, 236, 220, 0.05);
   --jn-cover-hole: #100c11;
 
-  --el-color-primary: #f2b134;
-  --el-color-primary-light-3: #f4c05c;
-  --el-color-primary-light-5: #f7d287;
-  --el-color-primary-light-7: #fae3b1;
-  --el-color-primary-light-9: #fef5e0;
-  --el-color-primary-dark-2: #d99a1f;
-  --el-bg-color: var(--jn-bg-elev);
-  --el-bg-color-overlay: var(--jn-bg-elev);
-  --el-bg-color-page: var(--jn-bg);
-  --el-text-color-primary: var(--jn-ink);
-  --el-text-color-regular: rgba(246, 236, 220, 0.85);
-  --el-text-color-secondary: var(--jn-ink-dim);
-  --el-text-color-placeholder: rgba(246, 236, 220, 0.32);
-  --el-border-color: var(--jn-hair);
-  --el-border-color-light: var(--jn-hair);
-  --el-border-color-lighter: var(--jn-hair);
-  --el-fill-color-blank: var(--jn-bg-elev);
-  --el-fill-color: rgba(246, 236, 220, 0.06);
-  --el-fill-color-light: rgba(246, 236, 220, 0.04);
-  --el-mask-color: rgba(16, 12, 17, 0.7);
+  /* Vant 主题覆盖 */
+  --van-primary-color: var(--jn-accent);
+  --van-text-color: var(--jn-ink);
+  --van-text-color-2: var(--jn-ink-dim);
+  --van-text-color-3: var(--jn-ink-muted);
+  --van-bg-color: var(--jn-bg-elev);
+  --van-border-color: var(--jn-hair);
+  --van-button-primary-background: var(--jn-accent);
+  --van-button-primary-border-color: var(--jn-accent);
+  --van-popup-background: var(--jn-bg-elev);
+  --van-toast-background: var(--jn-message-bg);
+  --van-toast-text-color: var(--jn-ink);
+  --van-slider-active-background: var(--jn-accent);
+  --van-slider-button-background: var(--jn-slider-thumb-fill);
+  --van-field-input-text-color: var(--jn-ink);
+  --van-field-background: var(--jn-input-bg);
+  --van-radio-checked-icon-color: var(--jn-accent);
+  --van-loading-spinner-color: var(--jn-accent);
 }
 
 :root[data-theme='light'] {
@@ -89,27 +87,6 @@
   --jn-cover-center: #f4ecd8;
   --jn-cover-groove: rgba(36, 27, 22, 0.08);
   --jn-cover-hole: #fbf4e2;
-
-  --el-color-primary: #c26a12;
-  --el-color-primary-light-3: #d78d3b;
-  --el-color-primary-light-5: #e6ad6e;
-  --el-color-primary-light-7: #f0cca1;
-  --el-color-primary-light-9: #faedd7;
-  --el-color-primary-dark-2: #a0530b;
-  --el-bg-color: var(--jn-bg-elev);
-  --el-bg-color-overlay: var(--jn-bg-elev);
-  --el-bg-color-page: var(--jn-bg);
-  --el-text-color-primary: var(--jn-ink);
-  --el-text-color-regular: rgba(36, 27, 22, 0.85);
-  --el-text-color-secondary: var(--jn-ink-dim);
-  --el-text-color-placeholder: rgba(36, 27, 22, 0.36);
-  --el-border-color: var(--jn-hair);
-  --el-border-color-light: var(--jn-hair);
-  --el-border-color-lighter: var(--jn-hair);
-  --el-fill-color-blank: var(--jn-bg-elev);
-  --el-fill-color: rgba(36, 27, 22, 0.06);
-  --el-fill-color-light: rgba(36, 27, 22, 0.04);
-  --el-mask-color: rgba(36, 27, 22, 0.5);
 }
 
 html, body {
@@ -132,68 +109,24 @@ html, body {
 
 ::selection { background: var(--jn-accent); color: var(--jn-accent-ink); }
 
-/* Element Plus 深色调整 */
-.el-input__wrapper {
-  background: var(--jn-input-bg) !important;
-  box-shadow: 0 0 0 1px var(--jn-hair) inset !important;
-  border-radius: 999px !important;
-}
-.el-textarea__inner {
-  background: var(--jn-input-bg) !important;
-  box-shadow: 0 0 0 1px var(--jn-hair) inset !important;
-  border-radius: 8px !important;
-}
-.el-input__wrapper:hover,
-.el-textarea__inner:hover {
-  box-shadow: 0 0 0 1px var(--jn-input-ring) inset !important;
-}
-.el-input.is-focus .el-input__wrapper,
-.el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 1px var(--jn-accent) inset !important;
-}
-.el-input__inner { color: var(--jn-ink) !important; }
-
-.el-pagination .btn-prev,
-.el-pagination .btn-next,
-.el-pagination .el-pager li {
-  background: transparent !important;
-  color: var(--jn-ink-dim) !important;
-}
-.el-pagination .el-pager li.is-active {
-  color: var(--jn-accent) !important;
-}
-
-.el-slider__runway { background: var(--jn-slider-track) !important; }
-.el-slider__bar { background: var(--jn-accent) !important; }
-.el-slider__button {
-  border: 2px solid var(--jn-accent) !important;
-  background: var(--jn-slider-thumb-fill) !important;
-}
-
-.el-tooltip__popper.is-dark {
-  background: var(--jn-tooltip-bg) !important;
-  border: 1px solid var(--jn-hair) !important;
-  color: #f6ecdc !important;
-}
-.el-popper.is-dark .el-popper__arrow::before {
-  background: var(--jn-tooltip-bg) !important;
-  border-color: var(--jn-hair) !important;
-}
-
-.el-message,
-.el-notification {
+/* Vant 组件深色适配 */
+.van-toast {
   background: var(--jn-message-bg) !important;
-  border: 1px solid var(--jn-hair) !important;
   color: var(--jn-ink) !important;
 }
 
-.el-drawer {
+.van-popup {
   background: var(--jn-bg-elev) !important;
   color: var(--jn-ink) !important;
 }
-.el-drawer__header { color: var(--jn-ink) !important; }
 
-.el-empty__description p { color: var(--jn-ink-dim) !important; }
+.van-field__control {
+  color: var(--jn-ink) !important;
+}
+
+.van-field__control::placeholder {
+  color: var(--jn-ink-muted) !important;
+}
 
 /* 通用滚动条 */
 ::-webkit-scrollbar { width: 10px; height: 10px; }

@@ -12,6 +12,7 @@
     "@element-plus/icons-vue": "^2.3.1",
     "element-plus": "^2.8.5",
     "pinia": "2.2.4",
+    "vant": "^4.10.0",
     "vue": "3.4.38"
   },
   "devDependencies": {
