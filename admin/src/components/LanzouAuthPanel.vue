@@ -202,6 +202,8 @@ fetchStatus()
   letter-spacing: 0.02em;
   cursor: pointer;
   transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  max-width: 200px;
+  overflow: hidden;
 }
 .lanzou-pill:hover {
   color: var(--jn-ink-strong);
@@ -209,7 +211,12 @@ fetchStatus()
   background: var(--jn-row-hover);
 }
 .lanzou-pill:active { transform: translateY(1px); }
-.lanzou-pill .txt { line-height: 1; }
+.lanzou-pill .txt { 
+  line-height: 1; 
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .lanzou-pill.state-ok { color: var(--jn-accent); border-color: var(--jn-accent); }
 .lanzou-pill.state-off { color: var(--jn-danger); border-color: color-mix(in oklab, var(--jn-danger) 55%, transparent); }
 
@@ -326,6 +333,9 @@ fetchStatus()
   border-left: 1px solid var(--jn-hair);
 }
 .lanzou-drawer :deep(.el-drawer__body) { padding: 0; }
+.lanzou-drawer :deep(.el-textarea__inner) {
+  border-radius: 8px !important;
+}
 
 .drawer-close {
   position: absolute;

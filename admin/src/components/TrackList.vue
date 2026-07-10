@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, VideoPlay, Refresh, Document } from '@element-plus/icons-vue'
 import { usePlayerStore, type Track } from '../stores/player'
@@ -12,6 +12,8 @@ const page = ref(1)
 const pageSize = 20
 const keyword = ref('')
 const loading = ref(false)
+const loadingMore = ref(false)
+const hasMore = ref(true)
 const error = ref<string | null>(null)
 const lyricsTrackId = ref('')
 const lyricsTrackName = ref('')
@@ -27,10 +29,12 @@ const PULL_THRESHOLD = 80
 let startY = 0
 let skipPull = false
 
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
-
-async function fetchTracks() {
-  loading.value = true
+async function fetchTracks(append = false) {
+  if (append) {
+    loadingMore.value = true
+  } else {
+    loading.value = true
+  }
   error.value = null
   try {
     const q = keyword.value.trim()
@@ -41,18 +45,23 @@ async function fetchTracks() {
     const payload = await res.json()
     if (!payload.success) {
       error.value = payload.error?.message || '加载失败'
-      tracks.value = []
-      total.value = 0
+      if (!append) { tracks.value = []; total.value = 0 }
       return
     }
-    tracks.value = payload.data.items as Track[]
-    total.value = payload.data.total ?? tracks.value.length
+    const items = payload.data.items as Track[]
+    total.value = payload.data.total ?? items.length
+    if (append) {
+      tracks.value.push(...items)
+    } else {
+      tracks.value = items
+    }
+    hasMore.value = items.length === pageSize
   } catch (e) {
     error.value = '网络异常，请检查网络后重试'
-    tracks.value = []
-    total.value = 0
+    if (!append) { tracks.value = []; total.value = 0 }
   } finally {
     loading.value = false
+    loadingMore.value = false
   }
 }
 
@@ -83,14 +92,33 @@ function openLyrics(trackId: string, name: string) {
   showLyrics.value = true
 }
 
-function onSearch() { page.value = 1; fetchTracks() }
-function onPageChange(p: number) { page.value = p; fetchTracks() }
+function onSearch() {
+  page.value = 1
+  tracks.value = []
+  hasMore.value = true
+  fetchTracks()
+}
 
 async function doRefresh() {
   refreshing.value = true
   page.value = 1
+  tracks.value = []
+  hasMore.value = true
   await fetchTracks()
   refreshing.value = false
+}
+
+function onScroll(e: Event) {
+  const el = e.target as HTMLElement
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) {
+    loadMore()
+  }
+}
+
+async function loadMore() {
+  if (loading.value || loadingMore.value || !hasMore.value) return
+  page.value++
+  await fetchTracks(true)
 }
 
 function isScrolledFromTarget(target: EventTarget | null): boolean {
@@ -239,7 +267,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- 歌曲列表 -->
-    <div v-else ref="scrollRef" class="track-scroll">
+    <div v-else ref="scrollRef" class="track-scroll" @scroll="onScroll">
       <ol class="track-rows">
         <li
           v-for="(track, idx) in tracks"
@@ -277,14 +305,12 @@ onBeforeUnmount(() => {
       </ol>
 
       <!-- 分页 -->
-      <div v-if="totalPages > 1" class="pager">
-        <el-pagination
-          layout="prev, pager, next"
-          :total="total"
-          :page-size="pageSize"
-          :current-page="page"
-          @current-change="onPageChange"
-        />
+      <div v-if="loadingMore" class="load-more">
+        <el-icon class="spin"><Refresh /></el-icon>
+        <span>加载中…</span>
+      </div>
+      <div v-else-if="!hasMore && tracks.length > 0" class="load-more">
+        <span class="no-more">— 到底了 —</span>
       </div>
     </div>
 
@@ -377,6 +403,7 @@ onBeforeUnmount(() => {
   animation: skel 1.4s linear infinite;
 }
 @keyframes skel { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+@keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
 
 .error-state {
   display: flex;
@@ -416,8 +443,15 @@ onBeforeUnmount(() => {
 }
 
 .row:hover { background: var(--jn-row-hover); }
-.row.active { background: var(--jn-row-active); }
+.row.active { 
+  background: var(--jn-row-active); 
+  animation: row-glow 2s ease-in-out infinite;
+}
 .row.active .row-name { color: var(--jn-accent); }
+@keyframes row-glow {
+  0%, 100% { background: var(--jn-row-active); }
+  50% { background: color-mix(in oklab, var(--jn-accent) 8%, transparent); }
+}
 
 .row-play {
   position: relative;
@@ -445,16 +479,21 @@ onBeforeUnmount(() => {
 .row.active:hover .row-play .num { visibility: visible; }
 .row.active .row-play { color: var(--jn-accent); }
 
-.wave { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; }
+.wave { display: inline-flex; align-items: flex-end; gap: 2px; height: 18px; }
 .wave i {
-  width: 3px; background: var(--jn-accent); border-radius: 2px;
-  animation: pulse 1s ease-in-out infinite;
+  width: 3px; border-radius: 2px;
+  animation: pulse 1.2s ease-in-out infinite;
+  background: linear-gradient(to top, var(--jn-accent), var(--jn-accent-strong));
 }
-.wave i:nth-child(1) { height: 60%; animation-delay: -0.4s; }
-.wave i:nth-child(2) { height: 100%; animation-delay: -0.2s; }
-.wave i:nth-child(3) { height: 40%; animation-delay: 0s; }
-.wave i:nth-child(4) { height: 75%; animation-delay: -0.3s; }
-@keyframes pulse { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+.wave i:nth-child(1) { height: 55%; animation-delay: -0.5s; }
+.wave i:nth-child(2) { height: 100%; animation-delay: -0.25s; }
+.wave i:nth-child(3) { height: 45%; animation-delay: 0s; }
+.wave i:nth-child(4) { height: 80%; animation-delay: -0.35s; }
+.wave i:nth-child(5) { height: 60%; animation-delay: -0.15s; }
+@keyframes pulse { 
+  0%, 100% { transform: scaleY(0.3); opacity: 0.7; } 
+  50% { transform: scaleY(1); opacity: 1; } 
+}
 
 .row-main { min-width: 0; }
 .row-name {
@@ -498,11 +537,18 @@ onBeforeUnmount(() => {
   background: var(--jn-row-hover);
 }
 
-.pager {
+.load-more {
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding-top: 14px;
+  gap: 8px;
+  padding: 20px 0;
+  color: var(--jn-ink-dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
 }
+.spin { animation: spin 0.8s linear infinite; }
+.no-more { color: var(--jn-ink-muted); }
 
 .empty {
   padding: 40px 0;

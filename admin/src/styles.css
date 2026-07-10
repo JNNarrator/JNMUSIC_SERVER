@@ -133,11 +133,15 @@ html, body {
 ::selection { background: var(--jn-accent); color: var(--jn-accent-ink); }
 
 /* Element Plus 深色调整 */
-.el-input__wrapper,
-.el-textarea__inner {
+.el-input__wrapper {
   background: var(--jn-input-bg) !important;
   box-shadow: 0 0 0 1px var(--jn-hair) inset !important;
   border-radius: 999px !important;
+}
+.el-textarea__inner {
+  background: var(--jn-input-bg) !important;
+  box-shadow: 0 0 0 1px var(--jn-hair) inset !important;
+  border-radius: 8px !important;
 }
 .el-input__wrapper:hover,
 .el-textarea__inner:hover {
