@@ -98,12 +98,12 @@ html, body {
 /* 移动端锁定视口滚动，仅让歌曲列表内部滚动。 */
 @media (max-width: 720px) {
   html, body {
-    height: 100%;
+    height: 100dvh;
     overflow: hidden;
     overscroll-behavior: none;
   }
   #app {
-    height: 100%;
+    height: 100dvh;
   }
 }
 

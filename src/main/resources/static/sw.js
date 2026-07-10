@@ -1,11 +1,10 @@
-const CACHE_NAME = 'jnmusic-v1';
+// 从注册作用域自动推导部署路径（兼容 /music/ 等 context-path）
+const BASE_PATH = new URL(self.registration.scope).pathname;
+const CACHE_NAME = 'jnmusic-v2';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/favicon.svg',
-  '/apple-touch-icon-180.png',
-  '/icon-192.png',
-  '/icon-512.png'
+  BASE_PATH,
+  `${BASE_PATH}index.html`,
+  `${BASE_PATH}favicon.svg`
 ];
 
 // 安装事件 - 预缓存静态资源
@@ -13,6 +12,8 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
+    }).catch((err) => {
+      console.error('[SW] 预缓存失败，降级继续:', err);
     })
   );
   self.skipWaiting();
@@ -27,7 +28,7 @@ self.addEventListener('activate', (event) => {
           .filter((name) => name !== CACHE_NAME)
           .map((name) => caches.delete(name))
       );
-    })
+    }).catch(() => {})
   );
   self.clients.claim();
 });
@@ -37,8 +38,8 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // API 请求使用 Network First
-  if (url.pathname.startsWith('/music/api/')) {
+  // API 请求使用 Network First — 基于部署路径
+  if (url.pathname.startsWith(`${BASE_PATH}api/`)) {
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -96,7 +97,7 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => {
         return caches.match(request).then((cached) => {
-          return cached || caches.match('/index.html');
+          return cached || caches.match(`${BASE_PATH}index.html`);
         });
       })
   );

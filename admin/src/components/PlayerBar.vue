@@ -249,7 +249,7 @@ function onCapsuleClick() {
 /* 胶囊 */
 .capsule {
   position: fixed;
-  bottom: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   right: 20px;
   width: 56px;
   height: 56px;
@@ -298,7 +298,8 @@ function onCapsuleClick() {
   grid-template-columns: 64px minmax(180px, 260px) 1fr 200px;
   align-items: center;
   gap: 20px;
-  padding: 14px 24px calc(14px + env(safe-area-inset-bottom));
+  padding: 14px 24px 14px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   background: var(--jn-bar-bg);
   border-top: 1px solid var(--jn-hair);
   backdrop-filter: blur(18px) saturate(120%);
@@ -533,7 +534,8 @@ function onCapsuleClick() {
       "cover info actions"
       "progress progress progress";
     gap: 10px 12px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    padding: 10px 14px 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   }
   .cover { grid-area: cover; width: 44px; height: 44px; }
   .info { grid-area: info; }

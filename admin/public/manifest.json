@@ -3,12 +3,14 @@
   "short_name": "JNMusic",
   "description": "一个简洁优雅的在线音乐播放器",
   "display": "standalone",
+  "start_url": ".",
+  "scope": ".",
   "background_color": "#100c11",
   "theme_color": "#f2b134",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/favicon.svg",
+      "src": "./favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

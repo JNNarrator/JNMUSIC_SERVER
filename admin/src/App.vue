@@ -82,6 +82,7 @@ const showThemeTooltip = ref(false)
   min-height: 100vh;
   min-height: 100dvh;
   padding: 32px 40px 200px;
+  padding: calc(32px + env(safe-area-inset-top, 0px)) calc(40px + env(safe-area-inset-right, 0px)) calc(200px + env(safe-area-inset-bottom, 0px)) calc(40px + env(safe-area-inset-left, 0px));
   color: var(--jn-ink);
   overflow-x: hidden;
   isolation: isolate;
@@ -90,7 +91,7 @@ const showThemeTooltip = ref(false)
 
 .glow-orange {
   position: fixed;
-  top: -20vh;
+  top: calc(-20vh + env(safe-area-inset-top, 0px));
   right: -10vw;
   width: 70vw;
   height: 70vw;
@@ -220,6 +221,7 @@ const showThemeTooltip = ref(false)
     flex-direction: column;
     height: 100dvh;
     padding: 16px 16px 0;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) 0 calc(16px + env(safe-area-inset-left, 0px));
     overflow: hidden;
   }
   .topbar { margin-bottom: 8px; gap: 12px; flex-shrink: 0; }

@@ -636,8 +636,7 @@ onBeforeUnmount(() => {
 @media (max-width: 720px) {
   .library { 
     padding: 0 16px 0;
-    height: 100vh;
-    height: 100dvh;
+    height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -656,7 +655,7 @@ onBeforeUnmount(() => {
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: calc(140px + env(safe-area-inset-bottom));
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   }
   .row { grid-template-columns: 36px 1fr auto; gap: 12px; padding: 10px 4px; }
   .row-meta .size { display: none; }
