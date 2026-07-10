@@ -4,9 +4,11 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import com.jn.music.common.logging.RequestLoggingInterceptor;
 
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -25,6 +27,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addViewController("/admin").setViewName("redirect:/admin/");
         registry.addViewController("/admin/").setViewName("forward:/admin/index.html");
         registry.addViewController("/admin/{path:[^\\.]*}").setViewName("forward:/admin/index.html");
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new RequestLoggingInterceptor());
     }
 
     @Bean
