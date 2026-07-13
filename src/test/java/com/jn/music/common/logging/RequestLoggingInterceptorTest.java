@@ -30,6 +30,7 @@ class RequestLoggingInterceptorTest {
     @Test
     void shouldLogGetRequest() throws Exception {
         TrackService trackService = org.mockito.Mockito.mock(TrackService.class);
+        TrackCacheService cacheService = org.mockito.Mockito.mock(TrackCacheService.class);
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new TrackController(trackService, cacheService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addInterceptors(new RequestLoggingInterceptor())

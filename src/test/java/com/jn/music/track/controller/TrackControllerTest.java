@@ -34,6 +34,7 @@ class TrackControllerTest {
     @BeforeEach
     void setUp() {
         trackService = Mockito.mock(TrackService.class);
+        TrackCacheService cacheService = Mockito.mock(TrackCacheService.class);
         mockMvc = MockMvcBuilders.standaloneSetup(new TrackController(trackService, cacheService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addFilters(new TraceIdConfig())

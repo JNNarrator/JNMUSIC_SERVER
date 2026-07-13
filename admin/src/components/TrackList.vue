@@ -2,7 +2,7 @@
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { showToast } from 'vant'
 import { ElIcon } from 'element-plus'
-import { Search, VideoPlay, Refresh, Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { Search, VideoPlay, Refresh, Loading, RefreshRight } from '@element-plus/icons-vue'
 import { usePlayerStore, type Track } from '../stores/player'
 import { useThemeStore } from '../stores/theme'
 
@@ -17,6 +17,40 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(true)
 const error = ref<string | null>(null)
+
+const cacheRefreshing = ref(false)
+const cacheProgress = ref<{ total: number; completed: number; inProgress: boolean } | null>(null)
+let cachePollTimer: ReturnType<typeof setInterval> | null = null
+
+async function refreshCache() {
+  cacheRefreshing.value = true
+  cacheProgress.value = null
+  try {
+    const res = await fetch('/music/api/v1/admin/lanzou/refresh-cache', { method: 'POST' })
+    const p = await res.json()
+    if (!p.success) {
+      showToast({ message: p.error?.message || '触发失败', type: 'error' })
+      cacheRefreshing.value = false
+      return
+    }
+    showToast({ message: '缓存刷新已触发', type: 'success' })
+    cachePollTimer = setInterval(async () => {
+      try {
+        const st = await fetch('/music/api/v1/tracks/cache/status')
+        const sp = await st.json()
+        if (sp.success && sp.data) {
+          cacheProgress.value = sp.data
+          if (!sp.data.inProgress) {
+            clearInterval(cachePollTimer!)
+            cachePollTimer = null
+            cacheRefreshing.value = false
+            doRefresh()
+          }
+        }
+      } catch { /* ignore poll errors */ }
+    }, 1500)
+  } catch (e) { showToast({ message: '网络异常', type: 'error' }); cacheRefreshing.value = false }
+}
 
 
 async function preloadAllUrls() {
@@ -188,6 +222,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (cachePollTimer) clearInterval(cachePollTimer)
   unbindTouch(scrollRef.value)
 })
 </script>
@@ -210,6 +245,14 @@ onBeforeUnmount(() => {
             @keyup.enter="onSearch"
           />
         </div>
+        <button class="cache-btn" :disabled="cacheRefreshing" @click="refreshCache" title="刷新歌曲直链缓存">
+          <el-icon :size="14" :class="{ spinning: cacheRefreshing }">
+            <Loading v-if="cacheRefreshing" />
+            <RefreshRight v-else />
+          </el-icon>
+          <span v-if="!cacheRefreshing">刷新缓存</span>
+          <span v-else>{{ cacheProgress ? `${cacheProgress.completed}/${cacheProgress.total}` : '刷新中…' }}</span>
+        </button>
         <button class="play-all" @click="playAll(0)" :disabled="!tracks.length">
           <el-icon :size="16"><VideoPlay /></el-icon>
           <span>播放全部</span>
@@ -227,6 +270,10 @@ onBeforeUnmount(() => {
       <span v-if="refreshing">正在刷新…</span>
       <span v-else-if="pullDistance >= PULL_THRESHOLD">释放刷新</span>
       <span v-else>下拉刷新</span>
+    </div>
+
+    <div v-if="cacheProgress && cacheProgress.inProgress" class="cache-progress-bar">
+      <div class="cache-progress-inner" :style="{ width: cacheProgress.total > 0 ? (cacheProgress.completed / cacheProgress.total * 100) + '%' : '0%' }" />
     </div>
 
     <!-- Track list -->
@@ -376,6 +423,43 @@ onBeforeUnmount(() => {
 .search-input .el-icon {
   color: var(--jn-ink-dim);
   flex-shrink: 0;
+}
+
+
+.cache-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--jn-hair);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--jn-ink-dim);
+  font-size: 12.5px;
+  font-family: 'IBM Plex Mono', monospace;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.cache-btn:hover:not(:disabled) {
+  color: var(--jn-accent);
+  border-color: var(--jn-accent);
+}
+.cache-btn:disabled { opacity: 0.5; cursor: wait; }
+.cache-btn .spinning { animation: spin 0.8s linear infinite; }
+
+.cache-progress-bar {
+  height: 2px;
+  background: var(--jn-hair);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.cache-progress-inner {
+  height: 100%;
+  background: linear-gradient(90deg, var(--jn-accent), var(--jn-accent-strong));
+  border-radius: 1px;
+  transition: width 0.5s ease;
 }
 
 .play-all {
@@ -629,6 +713,7 @@ onBeforeUnmount(() => {
   }
   .head-actions { width: 100%; }
   .search-input { flex: 1; width: auto; }
+  .cache-btn { padding: 6px 12px; font-size: 11px; }
   .track-scroll {
     flex: 1;
     overflow-y: auto;

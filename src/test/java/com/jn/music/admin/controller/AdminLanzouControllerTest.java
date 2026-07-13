@@ -4,6 +4,7 @@ import com.jn.music.common.exception.GlobalExceptionHandler;
 import com.jn.music.lanzou.LanzouApiClient;
 import com.jn.music.lanzou.LanzouSessionException;
 import com.jn.music.lanzou.LanzouUidVei;
+import com.jn.music.track.service.TrackCacheService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,6 +32,7 @@ class AdminLanzouControllerTest {
     @BeforeEach
     void setUp() {
         lanzouClient = mock(LanzouApiClient.class);
+        TrackCacheService cacheService = mock(TrackCacheService.class);
         mockMvc = MockMvcBuilders.standaloneSetup(new AdminLanzouController(lanzouClient, cacheService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
