@@ -142,3 +142,137 @@ html, body {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--jn-scroll-thumb-hover); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ====== 车机模式: 2560x1600 物理分辨率, ~1280x800 CSS 视口 ====== */
+html.car-mode {
+  /* 基础字号缩放：从 16px 基准放大到车机可读的 20px */
+  font-size: 20px;
+}
+html.car-mode body {
+  /* 车机浏览器可能最小化页面但音频需继续 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+html.car-mode :where(button, .ctl-btn, .pp-play-btn, .pp-skip-btn, .pp-mode-btn, .pp-collapse-btn) {
+  min-width: 48px;
+  min-height: 48px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+html.car-mode :where(button, .ctl-btn, .pp-play-btn, .pp-skip-btn):active {
+  opacity: 0.7;
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
+}
+/* 车机横屏: 歌单区域更宽 */
+html.car-mode .stage {
+  max-width: 1200px;
+}
+/* 车机 PlayerBar 底部栏加大 */
+html.car-mode .player-bar {
+  min-height: 80px;
+  padding: 16px 32px 16px;
+}
+html.car-mode .player-bar .cover {
+  width: 64px;
+  height: 64px;
+}
+html.car-mode .player-bar .info .title {
+  font-size: 18px;
+}
+html.car-mode .player-bar .info .artist {
+  font-size: 14px;
+}
+html.car-mode .player-bar .ctl-btn {
+  width: 48px;
+  height: 48px;
+}
+html.car-mode .player-bar .ctl-btn.primary {
+  width: 56px;
+  height: 56px;
+}
+html.car-mode .player-bar .progress .time {
+  font-size: 13px;
+}
+/* 车机歌单行高加大 */
+html.car-mode .row {
+  min-height: 64px;
+  padding: 14px 8px;
+}
+html.car-mode .row-name {
+  font-size: 18px;
+}
+html.car-mode .row-artist {
+  font-size: 14px;
+}
+html.car-mode .row-play {
+  width: 48px;
+  height: 48px;
+}
+html.car-mode .row-play .num {
+  font-size: 15px;
+}
+/* 车机搜索框加大 */
+html.car-mode .search-input {
+  height: 52px;
+  max-width: 480px;
+}
+html.car-mode .search-input input {
+  font-size: 16px;
+}
+html.car-mode .play-all {
+  font-size: 15px;
+  padding: 14px 28px;
+}
+/* 车机播放器全屏页 */
+html.car-mode .pp-header {
+  padding-top: 32px;
+  padding-bottom: 16px;
+}
+html.car-mode .pp-title {
+  font-size: 22px;
+}
+html.car-mode .pp-artist {
+  font-size: 16px;
+}
+html.car-mode .pp-lyrics {
+  padding: 0 64px;
+}
+html.car-mode .pp-line {
+  font-size: 18px;
+}
+html.car-mode .pp-line.active {
+  font-size: 24px;
+}
+html.car-mode .pp-play-btn {
+  width: 80px;
+  height: 80px;
+}
+html.car-mode .pp-skip-btn {
+  width: 56px;
+  height: 56px;
+}
+html.car-mode .pp-collapse-btn {
+  width: 48px;
+  height: 48px;
+  top: 32px;
+}
+html.car-mode .pp-controls {
+  padding: 20px 32px 40px;
+}
+/* 车机品牌与头部 */
+html.car-mode .brand-name {
+  font-size: 20px;
+}
+html.car-mode .brand-tag {
+  font-size: 13px;
+}
+html.car-mode .eyebrow {
+  font-size: 13px;
+}
+html.car-mode .head-title h2 {
+  font-size: 36px;
+}
+html.car-mode .lead {
+  font-size: 16px;
+}
