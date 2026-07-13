@@ -171,21 +171,49 @@ export const usePlayerStore = defineStore('player', () => {
     audio.src = url
     audio.currentTime = 0
     audio.volume = volume.value
-    // 等待新源缓冲就绪后再播放，避免切歌瞬间卡顿
-    const onReady = () => {
-      audio.removeEventListener('canplay', onReady)
-      pendingReady = null
+
+    // 尝试播放（含锁屏重试）
+    const tryPlay = () => {
       isPlaying.value = true
       loading.value = false
       const p = audio.play()
       if (p && typeof p.catch === 'function') {
         p.catch(() => {
-          isPlaying.value = false
+          // 锁屏或后台模式下播放可能被拒绝，延迟重试一次
+          setTimeout(() => {
+            audio.play().catch(() => {
+              isPlaying.value = false
+            })
+          }, 600)
         })
       }
     }
+
+    // 等待缓冲就绪后播放，同时设超时兜底（锁屏下 canplay 可能延迟较大）
+    let played = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const onReady = () => {
+      if (played) return
+      played = true
+      if (timeoutId) clearTimeout(timeoutId)
+      audio.removeEventListener('canplay', onReady)
+      pendingReady = null
+      tryPlay()
+    }
+
     pendingReady = onReady
     audio.addEventListener('canplay', onReady)
+
+    // 超时兜底：3 秒后无论如何尝试播放（处理锁屏/后台场景）
+    timeoutId = setTimeout(() => {
+      if (!played) {
+        played = true
+        audio.removeEventListener('canplay', onReady)
+        pendingReady = null
+        tryPlay()
+      }
+    }, 3000)
   }
 
   async function playIndex(index: number) {
