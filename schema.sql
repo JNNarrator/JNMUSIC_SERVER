@@ -16,3 +16,7 @@ CREATE TABLE IF NOT EXISTS track (
     INDEX idx_artist (artist),
     INDEX idx_album (album)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='歌曲元数据表';
+
+-- 缓存字段：播放直链及过期时间
+ALTER TABLE track ADD COLUMN IF NOT EXISTS media_url VARCHAR(1024) DEFAULT NULL COMMENT '播放直链';
+ALTER TABLE track ADD COLUMN IF NOT EXISTS url_expires_at DATETIME DEFAULT NULL COMMENT '直链过期时间';

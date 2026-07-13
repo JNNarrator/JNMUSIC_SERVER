@@ -31,7 +31,7 @@ class AdminLanzouControllerTest {
     @BeforeEach
     void setUp() {
         lanzouClient = mock(LanzouApiClient.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new AdminLanzouController(lanzouClient))
+        mockMvc = MockMvcBuilders.standaloneSetup(new AdminLanzouController(lanzouClient, cacheService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

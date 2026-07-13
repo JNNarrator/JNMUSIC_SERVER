@@ -43,4 +43,8 @@ public class Track {
     private Boolean hasLyric;
 
     private String lyricUrl;
+
+    private String mediaUrl;
+
+    private java.time.OffsetDateTime urlExpiresAt;
 }

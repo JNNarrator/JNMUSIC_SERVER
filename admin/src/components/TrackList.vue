@@ -3,7 +3,7 @@ import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { showToast } from 'vant'
 import { ElIcon } from 'element-plus'
 import { Search, VideoPlay, Refresh, Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
-import { usePlayerStore, fetchMediaUrls, type Track } from '../stores/player'
+import { usePlayerStore, type Track } from '../stores/player'
 import { useThemeStore } from '../stores/theme'
 
 const player = usePlayerStore()
@@ -17,7 +17,6 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(true)
 const error = ref<string | null>(null)
-const trackMediaStatus = ref<Record<string, 'loading' | 'ready' | 'error'>>({})
 
 
 async function preloadAllUrls() {
@@ -72,7 +71,6 @@ async function fetchTracks(append = false) {
       tracks.value = items
     }
     hasMore.value = items.length === pageSize
-    preloadAllUrls()
   } catch (e) {
     error.value = '网络异常，请检查网络后重试'
     if (!append) { tracks.value = []; total.value = 0 }
@@ -279,11 +277,7 @@ onBeforeUnmount(() => {
             <p class="row-artist">{{ track.artist || '未知艺人' }}</p>
           </div>
           <div class="row-meta">
-            <span class="track-status" :title="trackMediaStatus[track.trackId] === 'loading' ? '加载中…' : trackMediaStatus[track.trackId] === 'ready' ? '就绪' : '加载失败'">
-              <el-icon v-if="trackMediaStatus[track.trackId] === 'loading'" :size="14" class="spin"><Loading /></el-icon>
-              <el-icon v-else-if="trackMediaStatus[track.trackId] === 'ready'" :size="14" class="status-ready"><CircleCheck /></el-icon>
-              <el-icon v-else-if="trackMediaStatus[track.trackId] === 'error'" :size="14" class="status-error"><CircleClose /></el-icon>
-            </span>
+
           </div>
         </div>
       </div>

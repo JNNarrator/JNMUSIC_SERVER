@@ -23,4 +23,6 @@ public class TrackSummaryDTO {
     private String format;
     private Long fileSize;
     private Boolean hasLyric;
+    private String mediaUrl;
+    private java.time.OffsetDateTime urlExpiresAt;
 }

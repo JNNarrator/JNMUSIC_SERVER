@@ -25,4 +25,6 @@ public class TrackDTO {
     private Integer trackNumber;
     private Boolean hasLyric;
     private String lyricUrl;
+    private String mediaUrl;
+    private java.time.OffsetDateTime urlExpiresAt;
 }

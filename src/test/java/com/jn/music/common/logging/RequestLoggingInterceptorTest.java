@@ -9,6 +9,7 @@ import com.jn.music.common.config.TraceIdConfig;
 import com.jn.music.common.exception.GlobalExceptionHandler;
 import com.jn.music.track.controller.TrackController;
 import com.jn.music.track.service.TrackService;
+import com.jn.music.track.service.TrackCacheService;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class RequestLoggingInterceptorTest {
     @Test
     void shouldLogGetRequest() throws Exception {
         TrackService trackService = org.mockito.Mockito.mock(TrackService.class);
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new TrackController(trackService))
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new TrackController(trackService, cacheService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addInterceptors(new RequestLoggingInterceptor())
                 .addFilters(new TraceIdConfig())

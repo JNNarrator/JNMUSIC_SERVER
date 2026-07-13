@@ -17,6 +17,7 @@ import com.jn.music.track.dto.MediaUrlDTO;
 import com.jn.music.track.dto.TrackDTO;
 import com.jn.music.track.dto.TrackSummaryDTO;
 import com.jn.music.track.service.TrackService;
+import com.jn.music.track.service.TrackCacheService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,7 +34,7 @@ class TrackControllerTest {
     @BeforeEach
     void setUp() {
         trackService = Mockito.mock(TrackService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new TrackController(trackService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new TrackController(trackService, cacheService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addFilters(new TraceIdConfig())
                 .build();

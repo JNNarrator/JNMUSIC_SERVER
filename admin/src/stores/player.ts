@@ -56,7 +56,7 @@ async function fetchMediaUrl(trackId: string): Promise<{ url: string; format: st
 }
 
 // 批量获取直链
-export async function fetchMediaUrls(trackIds: string[]): Promise<Map<string, { url: string; format: string }>> {
+async function fetchMediaUrls(trackIds: string[]): Promise<Map<string, { url: string; format: string }>> {
   const result = new Map<string, { url: string; format: string }>()
   
   // 过滤出需要请求的ID（缓存中没有或已过期）

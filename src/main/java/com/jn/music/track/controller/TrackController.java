@@ -5,6 +5,7 @@ import com.jn.music.common.PageResponse;
 import com.jn.music.common.enums.ErrorCode;
 import com.jn.music.common.exception.BusinessException;
 import com.jn.music.track.dto.TrackBatchRequest;
+import com.jn.music.track.service.TrackCacheService;
 import com.jn.music.track.service.TrackService;
 import com.jn.music.track.dto.MediaUrlDTO;
 import com.jn.music.track.dto.TrackDTO;
@@ -30,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class TrackController {
 
     private final TrackService trackService;
+    private final TrackCacheService cacheService;
 
-    public TrackController(TrackService trackService) {
+    public TrackController(TrackService trackService, TrackCacheService cacheService) {
         this.trackService = trackService;
+        this.cacheService = cacheService;
     }
 
     @Operation(summary = "搜索歌曲", description = "根据关键词搜索歌曲")
@@ -159,6 +162,12 @@ public class TrackController {
 
     private static String trimToEmpty(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    @Operation(summary = "缓存状态", description = "查询歌曲直链缓存的刷新进度")
+    @GetMapping("/cache/status")
+    public ApiResponse<Map<String, Object>> cacheStatus() {
+        return ApiResponse.success(cacheService.getStatus());
     }
 
     private record PageParams(int page, int pageSize) {

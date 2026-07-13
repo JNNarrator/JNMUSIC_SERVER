@@ -1,8 +1,10 @@
 package com.jn.music.admin.controller;
 
 import com.jn.music.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import com.jn.music.common.enums.ErrorCode;
 import com.jn.music.common.exception.BusinessException;
+import com.jn.music.track.service.TrackCacheService;
 import com.jn.music.lanzou.LanzouApiClient;
 import com.jn.music.lanzou.LanzouSessionException;
 import com.jn.music.lanzou.LanzouUidVei;
@@ -25,9 +27,11 @@ import java.util.Map;
 public class AdminLanzouController {
 
     private final LanzouApiClient lanzouClient;
+    private final TrackCacheService cacheService;
 
-    public AdminLanzouController(LanzouApiClient lanzouClient) {
+    public AdminLanzouController(LanzouApiClient lanzouClient, TrackCacheService cacheService) {
         this.lanzouClient = lanzouClient;
+        this.cacheService = cacheService;
     }
 
     @GetMapping("/status")
@@ -77,4 +81,11 @@ public class AdminLanzouController {
     public record CookieRequest(@NotBlank String cookie) {}
 
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {}
+    @Operation(summary = "刷新歌曲直链缓存", description = "手动触发全量刷新所有歌曲的播放直链")
+    @PostMapping("/refresh-cache")
+    public ApiResponse<String> refreshCache() {
+        cacheService.manualRefresh();
+        return ApiResponse.success("缓存刷新已触发");
+    }
+
 }

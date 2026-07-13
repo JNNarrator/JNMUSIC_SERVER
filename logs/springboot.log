@@ -1,0 +1,12 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.1.0)
+
+2026-07-08T18:06:05.817+08:00  INFO 14723 --- [jn_music] [           main] com.jn.music.MusicApplication            : Starting MusicApplication v0.0.1-SNAPSHOT using Java 21.0.4 with PID 14723 (/Applications/work/workspace/music/target/music-0.0.1-SNAPSHOT.jar started by jiangnan in /Applications/work/workspace/music)
+2026-07-08T18:06:05.819+08:00  INFO 14723 --- [jn_music] [           main] com.jn.music.MusicApplication            : The following 1 profile is active: "dev"

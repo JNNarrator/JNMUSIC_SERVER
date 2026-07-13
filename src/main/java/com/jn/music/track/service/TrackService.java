@@ -10,6 +10,8 @@ import java.util.Map;
 
 public interface TrackService {
 
+    java.util.List<String> getAllTrackIds();
+
     PageResponse<TrackSummaryDTO> searchTracks(String keyword, Integer page, Integer pageSize);
 
     PageResponse<TrackSummaryDTO> listTracks(Integer page, Integer pageSize);

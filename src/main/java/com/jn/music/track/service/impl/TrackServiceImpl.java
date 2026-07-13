@@ -4,6 +4,8 @@ import com.jn.music.common.PageResponse;
 import com.jn.music.common.enums.ErrorCode;
 import com.jn.music.common.exception.BusinessException;
 import com.jn.music.storage.MusicStorage;
+import com.jn.music.track.mapper.TrackMapper;
+import com.jn.music.track.domain.Track;
 import com.jn.music.storage.StorageFile;
 import com.jn.music.storage.StorageFolder;
 import com.jn.music.storage.StorageListResult;
@@ -78,9 +80,11 @@ public class TrackServiceImpl implements TrackService {
     private static final int MAX_PAGES = 20;
 
     private final MusicStorage musicStorage;
+    private final TrackMapper trackMapper;
 
-    public TrackServiceImpl(MusicStorage musicStorage) {
+    public TrackServiceImpl(MusicStorage musicStorage, TrackMapper trackMapper) {
         this.musicStorage = musicStorage;
+        this.trackMapper = trackMapper;
     }
 
     @Override
@@ -141,13 +145,31 @@ public class TrackServiceImpl implements TrackService {
     @Cacheable(value = "mediaUrls", key = "#trackId")
     public MediaUrlDTO getMediaUrl(String trackId) {
         String id = requireTrackId(trackId);
+        // L2: 先查 MySQL 缓存的直链
+        var cachedTrack = trackMapper.selectById(id);
+        if (cachedTrack != null && cachedTrack.getMediaUrl() != null && !cachedTrack.getMediaUrl().isBlank()
+                && cachedTrack.getUrlExpiresAt() != null && cachedTrack.getUrlExpiresAt().isAfter(OffsetDateTime.now())) {
+            // 有效缓存 → 直接返回，不调蓝奏云
+            String fmt = cachedTrack.getFormat() != null ? cachedTrack.getFormat() : "";
+            return MediaUrlDTO.builder().trackId(id).mediaUrl(cachedTrack.getMediaUrl()).format(fmt)
+                    .expiresAt(cachedTrack.getUrlExpiresAt()).build();
+        }
+        // 缓存失效 → 调蓝奏云 → 回写 MySQL
         String format = "";
         for (SongFolder sf : loadSongFolders()) {
             if (id.equals(sf.audioFile().id())) { format = sf.parseFolderName().format(); break; }
         }
         try {
-            return MediaUrlDTO.builder().trackId(id).mediaUrl(musicStorage.getDownloadUrl(id)).format(format)
+            var dto = MediaUrlDTO.builder().trackId(id).mediaUrl(musicStorage.getDownloadUrl(id)).format(format)
                     .expiresAt(OffsetDateTime.now().plusHours(4)).build();
+            // 回写 MySQL
+            if (cachedTrack != null) {
+                cachedTrack.setMediaUrl(dto.getMediaUrl());
+                cachedTrack.setUrlExpiresAt(dto.getExpiresAt());
+                cachedTrack.setFormat(format);
+                trackMapper.updateById(cachedTrack);
+            }
+            return dto;
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "获取播放链接失败: " + e.getMessage());
         }
@@ -156,13 +178,37 @@ public class TrackServiceImpl implements TrackService {
     @Override
     public Map<String, MediaUrlDTO> getMediaUrls(List<String> trackIds) {
         if (trackIds == null || trackIds.isEmpty()) return Map.of();
-        Map<String, String> urlMap = musicStorage.getDownloadUrls(trackIds.stream().distinct().toList());
         Map<String, MediaUrlDTO> result = new HashMap<>();
-        for (SongFolder sf : loadSongFolders()) {
-            String id = sf.audioFile().id();
-            if (urlMap.containsKey(id)) {
-                result.put(id, MediaUrlDTO.builder().trackId(id).mediaUrl(urlMap.get(id))
-                        .format(sf.parseFolderName().format()).expiresAt(OffsetDateTime.now().plusHours(4)).build());
+        List<String> missing = new ArrayList<>();
+        // L2: 先查 MySQL
+        for (String id : trackIds) {
+            var ct = trackMapper.selectById(id);
+            if (ct != null && ct.getMediaUrl() != null && !ct.getMediaUrl().isBlank()
+                    && ct.getUrlExpiresAt() != null && ct.getUrlExpiresAt().isAfter(OffsetDateTime.now())) {
+                String fmt = ct.getFormat() != null ? ct.getFormat() : "";
+                result.put(id, MediaUrlDTO.builder().trackId(id).mediaUrl(ct.getMediaUrl()).format(fmt)
+                        .expiresAt(ct.getUrlExpiresAt()).build());
+            } else {
+                missing.add(id);
+            }
+        }
+        // 未命中 → 调蓝奏云批量获取
+        if (!missing.isEmpty()) {
+            Map<String, String> urlMap = musicStorage.getDownloadUrls(missing);
+            for (SongFolder sf : loadSongFolders()) {
+                String id = sf.audioFile().id();
+                if (urlMap.containsKey(id)) {
+                    var dto = MediaUrlDTO.builder().trackId(id).mediaUrl(urlMap.get(id))
+                            .format(sf.parseFolderName().format()).expiresAt(OffsetDateTime.now().plusHours(4)).build();
+                    result.put(id, dto);
+                    // 回写 MySQL
+                    var ct = trackMapper.selectById(id);
+                    if (ct != null) {
+                        ct.setMediaUrl(dto.getMediaUrl());
+                        ct.setUrlExpiresAt(dto.getExpiresAt());
+                        trackMapper.updateById(ct);
+                    }
+                }
             }
         }
         return result;
@@ -244,11 +290,22 @@ public class TrackServiceImpl implements TrackService {
     }
 
     private List<TrackSummaryDTO> loadAllAudioSummaries() {
+        // 先从 MySQL 加载所有缓存的直链
+        java.util.Map<String, Track> cacheMap = new java.util.HashMap<>();
+        for (com.jn.music.track.domain.Track t : trackMapper.selectList(null)) {
+            if (t.getMediaUrl() != null && !t.getMediaUrl().isBlank()) {
+                cacheMap.put(t.getTrackId(), t);
+            }
+        }
         List<TrackSummaryDTO> out = new ArrayList<>();
         for (SongFolder sf : loadSongFolders()) {
             ParsedName pn = sf.parseFolderName();
+            var cached = cacheMap.get(sf.audioFile().id());
             out.add(TrackSummaryDTO.builder().trackId(sf.audioFile().id()).name(pn.name()).artist(pn.artist())
-                    .format(pn.format()).fileSize(sf.audioFile().size()).hasLyric(sf.lyricFile() != null).build());
+                    .format(pn.format()).fileSize(sf.audioFile().size()).hasLyric(sf.lyricFile() != null)
+                    .mediaUrl(cached != null ? cached.getMediaUrl() : null)
+                    .urlExpiresAt(cached != null ? cached.getUrlExpiresAt() : null)
+                    .build());
         }
         return out;
     }
@@ -308,4 +365,12 @@ public class TrackServiceImpl implements TrackService {
     }
 
     record ParsedName(String name, String artist, String format, boolean isLyric) {}
+    @Override
+    public java.util.List<String> getAllTrackIds() {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        for (SongFolder sf : loadSongFolders()) {
+            ids.add(sf.audioFile().id());
+        }
+        return ids;
+    }
 }
