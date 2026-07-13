@@ -6,19 +6,9 @@ import App from './App.vue'
 import './styles.css'
 
 // === 车机模式 ===
-// URL 参数 ?car=1 进入，localStorage 持久化
-const CAR_KEY = 'jnmusic.car-mode'
+// URL 参数 ?car=1 激活（不持久化，仅当次生效）
 if (new URLSearchParams(location.search).has('car')) {
-  localStorage.setItem(CAR_KEY, '1')
-} else if (localStorage.getItem(CAR_KEY) === '1') {
-  // persist across sessions
-}
-if (localStorage.getItem(CAR_KEY) === '1') {
   document.documentElement.classList.add('car-mode')
-}
-if (new URLSearchParams(location.search).has('no-car')) {
-  localStorage.removeItem(CAR_KEY)
-  document.documentElement.classList.remove('car-mode')
 }
 
 
