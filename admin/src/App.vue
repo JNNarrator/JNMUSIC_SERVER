@@ -80,7 +80,7 @@ const showThemeTooltip = ref(false)
 .shell {
   position: relative;
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: calc(var(--vh, 1vh) * 100);
   padding: 32px 40px 200px;
   padding: calc(32px + env(safe-area-inset-top, 0px)) calc(40px + env(safe-area-inset-right, 0px)) calc(200px + env(safe-area-inset-bottom, 0px)) calc(40px + env(safe-area-inset-left, 0px));
   color: var(--jn-ink);
@@ -217,10 +217,14 @@ const showThemeTooltip = ref(false)
 
 @media (max-width: 720px) {
   .shell {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     flex-direction: column;
-    height: 100dvh;
-    padding: 16px 16px 0;
+    box-sizing: border-box;
     padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px)) 0 calc(16px + env(safe-area-inset-left, 0px));
     overflow: hidden;
   }

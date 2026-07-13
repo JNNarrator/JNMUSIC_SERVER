@@ -10,6 +10,7 @@ import {
   Refresh,
   RefreshRight,
   Mute,
+  Loading,
 } from '@element-plus/icons-vue'
 import { usePlayerStore, type PlayMode } from '../stores/player'
 import { useUiStore } from '../stores/ui'
@@ -177,7 +178,8 @@ function onCapsuleClick() {
           aria-label="播放或暂停"
           @click.stop="player.toggle"
         >
-          <el-icon :size="20">
+          <el-icon v-if="player.loading" :size="20" class="spin"><Loading /></el-icon>
+          <el-icon v-else :size="20">
             <VideoPause v-if="player.isPlaying" />
             <VideoPlay v-else />
           </el-icon>
@@ -437,6 +439,11 @@ function onCapsuleClick() {
   transform: scale(0.92);
   box-shadow: 0 6px 16px var(--jn-glow);
 }
+.ctl-btn.primary.loading {
+  animation: none;
+  cursor: wait;
+}
+.spin { animation: spin 0.8s linear infinite; }
 
 .progress {
   display: grid;
@@ -529,13 +536,28 @@ function onCapsuleClick() {
 /* 移动端 */
 @media (max-width: 720px) {
   .player-bar {
+    flex-shrink: 0;
+    position: relative;
     grid-template-columns: 44px 1fr auto;
     grid-template-areas:
       "cover info actions"
       "progress progress progress";
     gap: 10px 12px;
     padding: 10px 14px 10px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 34px));
+    box-sizing: border-box;
+  }
+  /* 填充 iOS 底部不可布局的孤岛间隙 */
+  .player-bar::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(env(safe-area-inset-bottom, 34px) + 20px);
+    background: inherit;
+    transform: translateY(100%);
+    pointer-events: none;
   }
   .cover { grid-area: cover; width: 44px; height: 44px; }
   .info { grid-area: info; }

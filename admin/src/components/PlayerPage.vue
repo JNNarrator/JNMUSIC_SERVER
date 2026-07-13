@@ -3,7 +3,7 @@ import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import { ElIcon } from 'element-plus'
 import {
   VideoPlay, VideoPause, DArrowLeft, DArrowRight,
-  Sort, Refresh, RefreshRight, Mute, Close,
+  Sort, Refresh, RefreshRight, Mute, Close, Loading,
 } from '@element-plus/icons-vue'
 import { usePlayerStore, type PlayMode } from '../stores/player'
 import { useUiStore } from '../stores/ui'
@@ -295,9 +295,10 @@ function handleClose() { ui.closePlayerPage() }
             <button class="pp-skip-btn" :disabled="!player.queue.length" @click.stop="player.prev()">
               <el-icon :size="24"><DArrowLeft /></el-icon>
             </button>
-            <button class="pp-play-btn" :class="{ playing: player.isPlaying }" :disabled="!player.currentTrack" @click.stop="player.toggle()">
+            <button class="pp-play-btn" :class="{ playing: player.isPlaying, loading: player.loading }" :disabled="!player.currentTrack || player.loading" @click.stop="player.toggle()">
               <span class="pp-play-ring" />
-              <el-icon :size="28" class="pp-play-icon">
+              <el-icon v-if="player.loading" :size="28" class="pp-play-icon spin"><Loading /></el-icon>
+              <el-icon v-else :size="28" class="pp-play-icon">
                 <VideoPause v-if="player.isPlaying" /><VideoPlay v-else />
               </el-icon>
             </button>
@@ -333,6 +334,7 @@ function handleClose() { ui.closePlayerPage() }
 
 .player-page {
   position: fixed; inset: 0; z-index: 50;
+
   display: flex; flex-direction: column;
   background: var(--jn-bg); color: var(--jn-ink);
   overflow: hidden; will-change: transform;
@@ -409,7 +411,7 @@ function handleClose() { ui.closePlayerPage() }
 .pp-lyrics-empty-text { font-size: 15px; color: var(--jn-ink-muted); font-family: 'IBM Plex Mono', monospace; }
 
 /* 底部控制区 */
-.pp-controls { flex-shrink: 0; padding: 16px 28px calc(24px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; align-items: center; background: linear-gradient(to top, rgba(16, 12, 17, 0.6) 0%, transparent 100%); }
+.pp-controls { flex-shrink: 0; padding: 16px 28px calc(24px + env(safe-area-inset-bottom, 34px)); display: flex; flex-direction: column; gap: 14px; align-items: center; background: linear-gradient(to top, rgba(16, 12, 17, 0.6) 0%, transparent 100%); }
 
 .pp-progress-tooltip {
   position: absolute; top: -32px; transform: translateX(-50%);
@@ -465,7 +467,9 @@ function handleClose() { ui.closePlayerPage() }
 .pp-play-btn:hover:not(:disabled) { transform: scale(1.1); box-shadow: 0 14px 44px var(--jn-glow), 0 0 0 4px var(--jn-accent-soft); }
 .pp-play-btn:active:not(:disabled) { transform: scale(0.9); box-shadow: 0 4px 16px var(--jn-glow); }
 .pp-play-btn:disabled { opacity: 0.4; cursor: default; }
+.pp-play-btn.loading { cursor: wait; }
 .pp-play-ring { position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--jn-accent); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+.pp-play-btn.loading .pp-play-ring { opacity: 0.35; animation: pp-ring-pulse 1.2s ease-in-out infinite; }
 .pp-play-btn.playing .pp-play-ring { opacity: 0.35; animation: pp-ring-pulse 2.4s ease-in-out infinite; }
 @keyframes pp-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.35; } 50% { transform: scale(1.12); opacity: 0.12; } }
 .pp-play-icon { position: relative; z-index: 1; }
@@ -482,12 +486,12 @@ function handleClose() { ui.closePlayerPage() }
 }
 
 @media (max-width: 720px) {
-  .pp-header { padding: 14px 16px 6px; }
+  .pp-header { padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 6px; }
   .pp-collapse-btn { top: calc(12px + env(safe-area-inset-top)); right: 16px; width: 40px; height: 40px; }
   .pp-title { font-size: 16px; } .pp-artist { font-size: 12px; }
   .pp-lyrics { padding: 0 12px; }
   .pp-line { font-size: 14px; } .pp-line.active { font-size: 18px; }
-  .pp-controls { padding: 12px 16px calc(18px + env(safe-area-inset-bottom)); gap: 10px; }
+  .pp-controls { padding: 12px 16px calc(18px + env(safe-area-inset-bottom, 34px)); gap: 10px; }
   .pp-progress-row { grid-template-columns: 36px 1fr 36px; gap: 8px; }
   .pp-center-btns { gap: 16px; }
   .pp-play-btn { width: 56px; height: 56px; }

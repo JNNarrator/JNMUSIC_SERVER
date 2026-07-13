@@ -31,6 +31,9 @@ const audio: HTMLAudioElement | null =
   typeof window !== 'undefined' ? new Audio() : null
 if (audio) audio.preload = 'metadata'
 
+// 用于取消上一次未完成的切歌就绪回调
+let pendingReady: (() => void) | null = null
+
 // 前端直链缓存：trackId -> { url, format, expiresAt }
 const urlCache = new Map<string, { url: string; format: string; expiresAt: number }>()
 
@@ -53,7 +56,7 @@ async function fetchMediaUrl(trackId: string): Promise<{ url: string; format: st
 }
 
 // 批量获取直链
-async function fetchMediaUrls(trackIds: string[]): Promise<Map<string, { url: string; format: string }>> {
+export async function fetchMediaUrls(trackIds: string[]): Promise<Map<string, { url: string; format: string }>> {
   const result = new Map<string, { url: string; format: string }>()
   
   // 过滤出需要请求的ID（缓存中没有或已过期）
@@ -153,17 +156,36 @@ export const usePlayerStore = defineStore('player', () => {
 
   function doPlay(url: string) {
     if (!audio) return
+    // 取消上一次未完成的切歌回调，防止快速连点时状态混乱
+    if (pendingReady) {
+      audio.removeEventListener('canplay', pendingReady)
+      pendingReady = null
+    }
     loading.value = true
+    isPlaying.value = false
+    // 彻底终止并重置音频元素，避免旧音频残留
+    audio.pause()
+    audio.removeAttribute('src')
+    audio.load()
+    // 切换到新源
     audio.src = url
     audio.currentTime = 0
     audio.volume = volume.value
-    const promise = audio.play()
-    if (promise && typeof promise.catch === 'function') {
-      promise.catch(() => {
-        isPlaying.value = false
-        loading.value = false
-      })
+    // 等待新源缓冲就绪后再播放，避免切歌瞬间卡顿
+    const onReady = () => {
+      audio.removeEventListener('canplay', onReady)
+      pendingReady = null
+      isPlaying.value = true
+      loading.value = false
+      const p = audio.play()
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          isPlaying.value = false
+        })
+      }
     }
+    pendingReady = onReady
+    audio.addEventListener('canplay', onReady)
   }
 
   async function playIndex(index: number) {
@@ -183,6 +205,12 @@ export const usePlayerStore = defineStore('player', () => {
 
     // 没有直链，按需获取
     loading.value = true
+
+    // 立即停止旧音频并清空源，防止旧歌在加载期间继续播放
+    audio.pause()
+    audio.src = ''
+    // 锁定用户手势：play 会失败（无源）但仍会标记音频元素为已激活
+    audio.play().catch(() => {})
     const result = await fetchMediaUrl(track.trackId)
     if (!result) {
       isPlaying.value = false

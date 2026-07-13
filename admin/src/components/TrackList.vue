@@ -2,10 +2,9 @@
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { showToast } from 'vant'
 import { ElIcon } from 'element-plus'
-import { Search, VideoPlay, Refresh, Document } from '@element-plus/icons-vue'
-import { usePlayerStore, type Track } from '../stores/player'
+import { Search, VideoPlay, Refresh, Loading, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { usePlayerStore, fetchMediaUrls, type Track } from '../stores/player'
 import { useThemeStore } from '../stores/theme'
-import LyricsPanel from './LyricsPanel.vue'
 
 const player = usePlayerStore()
 const theme = useThemeStore()
@@ -18,9 +17,23 @@ const loading = ref(false)
 const loadingMore = ref(false)
 const hasMore = ref(true)
 const error = ref<string | null>(null)
-const lyricsTrackId = ref('')
-const lyricsTrackName = ref('')
-const showLyrics = ref(false)
+const trackMediaStatus = ref<Record<string, 'loading' | 'ready' | 'error'>>({})
+
+
+async function preloadAllUrls() {
+  if (!tracks.value.length) return
+  const ids = tracks.value.map(t => t.trackId)
+  const st: Record<string, 'loading' | 'ready' | 'error'> = {}
+  ids.forEach(id => { st[id] = 'loading' })
+  trackMediaStatus.value = { ...st }
+  try {
+    await fetchMediaUrls(ids)
+    ids.forEach(id => { st[id] = 'ready' })
+  } catch {
+    ids.forEach(id => { st[id] = 'error' })
+  }
+  trackMediaStatus.value = { ...st }
+}
 
 // --- pull-to-refresh ---
 const pullRef = ref<HTMLElement | null>(null)
@@ -59,6 +72,7 @@ async function fetchTracks(append = false) {
       tracks.value = items
     }
     hasMore.value = items.length === pageSize
+    preloadAllUrls()
   } catch (e) {
     error.value = '网络异常，请检查网络后重试'
     if (!append) { tracks.value = []; total.value = 0 }
@@ -86,12 +100,6 @@ function onRowActivate(track: Track, idx: number) {
     return
   }
   playAll(idx)
-}
-
-function openLyrics(trackId: string, name: string) {
-  lyricsTrackId.value = trackId
-  lyricsTrackName.value = name
-  showLyrics.value = true
 }
 
 function onSearch() {
@@ -160,12 +168,6 @@ function onTouchEnd() {
     pullDistance.value = 0
   }
   pulling.value = false
-}
-
-function formatSize(bytes?: number) {
-  if (!bytes) return ''
-  const mb = bytes / 1024 / 1024
-  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${(bytes / 1024).toFixed(0)} KB`
 }
 
 function bindTouch(el: HTMLElement | null) {
@@ -277,15 +279,11 @@ onBeforeUnmount(() => {
             <p class="row-artist">{{ track.artist || '未知艺人' }}</p>
           </div>
           <div class="row-meta">
-            <span v-if="track.format" class="tag">{{ track.format.toUpperCase() }}</span>
-            <span class="size">{{ formatSize(track.fileSize) }}</span>
-            <button
-              v-if="track.hasLyric"
-              class="lyrics-btn"
-              @click.stop="openLyrics(track.trackId, track.name)"
-            >
-              <el-icon :size="14"><Document /></el-icon>
-            </button>
+            <span class="track-status" :title="trackMediaStatus[track.trackId] === 'loading' ? '加载中…' : trackMediaStatus[track.trackId] === 'ready' ? '就绪' : '加载失败'">
+              <el-icon v-if="trackMediaStatus[track.trackId] === 'loading'" :size="14" class="spin"><Loading /></el-icon>
+              <el-icon v-else-if="trackMediaStatus[track.trackId] === 'ready'" :size="14" class="status-ready"><CircleCheck /></el-icon>
+              <el-icon v-else-if="trackMediaStatus[track.trackId] === 'error'" :size="14" class="status-error"><CircleClose /></el-icon>
+            </span>
           </div>
         </div>
       </div>
@@ -300,12 +298,6 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Lyrics Panel -->
-    <LyricsPanel
-      v-model:visible="showLyrics"
-      :track-id="lyricsTrackId"
-      :track-name="lyricsTrackName"
-    />
   </section>
 </template>
 
@@ -603,22 +595,15 @@ onBeforeUnmount(() => {
   border-radius: 4px;
 }
 
-.lyrics-btn {
+.track-status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px; height: 26px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--jn-ink-dim);
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  width: 22px; height: 22px;
 }
-.lyrics-btn:hover {
-  color: var(--jn-accent);
-  background: var(--jn-row-hover);
-}
+.track-status .status-ready { color: var(--jn-accent); }
+.track-status .status-error { color: var(--jn-danger); }
+.track-status .spin { color: var(--jn-ink-dim); animation: spin 0.8s linear infinite; }
 
 .load-more {
   display: flex;
@@ -655,7 +640,7 @@ onBeforeUnmount(() => {
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 34px));
   }
   .row { grid-template-columns: 36px 1fr auto; gap: 12px; padding: 10px 4px; }
   .row-meta .size { display: none; }
