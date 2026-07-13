@@ -130,6 +130,16 @@ async function prefetchNextUrls(tracks: Track[], currentIdx: number) {
   }
 }
 
+
+function updateMediaSession(track: Track) {
+  if (!('mediaSession' in navigator)) return
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: track.name,
+    artist: track.artist,
+    artwork: [{ src: '/music/favicon.svg', sizes: '512x512', type: 'image/svg+xml' }]
+  })
+}
+
 export const usePlayerStore = defineStore('player', () => {
   const queue = ref<Track[]>([])
   const currentIndex = ref(-1)
@@ -173,15 +183,25 @@ export const usePlayerStore = defineStore('player', () => {
     audio.volume = volume.value
 
     // 尝试播放（含锁屏重试）
+    // 注意：不在这里设 isPlaying，由 play/pause 事件监听器管理，
+    // 避免锁屏下 play() resolve 但无声时误显示播放状态
     const tryPlay = () => {
-      isPlaying.value = true
       loading.value = false
       const p = audio.play()
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => {
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          // play() resolve 了，但检查音频是否真的在播放
+          // 锁屏下 iOS 可能 resolve 但不输出声音
+          if (audio.paused) {
+            isPlaying.value = false
+          }
+          // 如果没 pause，play 事件会设 isPlaying = true
+        }).catch(() => {
           // 锁屏或后台模式下播放可能被拒绝，延迟重试一次
           setTimeout(() => {
-            audio.play().catch(() => {
+            audio.play().then(() => {
+              if (audio.paused) isPlaying.value = false
+            }).catch(() => {
               isPlaying.value = false
             })
           }, 600)
@@ -225,6 +245,8 @@ export const usePlayerStore = defineStore('player', () => {
 
     if (track.mediaUrl) {
       doPlay(track.mediaUrl)
+      // 更新 Media Session 元数据（锁屏/控制中心显示）
+      updateMediaSession(track)
       // 后台预取下一首 + 预加载当前歌词
       prefetchNextUrls(queue.value, index)
       fetchLyricsCached(track.trackId)
@@ -248,6 +270,8 @@ export const usePlayerStore = defineStore('player', () => {
     // 回写到 queue 中，后续切回这首歌不再请求
     queue.value = queue.value.map((t, i) => i === index ? { ...t, mediaUrl: result.url } : t)
     doPlay(result.url)
+    // 更新 Media Session 元数据（锁屏/控制中心显示）
+    updateMediaSession(track)
     // 后台预取下一首 + 预加载当前歌词
     prefetchNextUrls(queue.value, index)
     fetchLyricsCached(track.trackId)
@@ -342,6 +366,14 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   if (audio) {
+    // Media Session API: 让 iOS 在锁屏/后台识别为媒体应用，保持音频会话活跃
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => toggle())
+      navigator.mediaSession.setActionHandler('pause', () => toggle())
+      navigator.mediaSession.setActionHandler('previoustrack', () => prev())
+      navigator.mediaSession.setActionHandler('nexttrack', () => next(true))
+    }
+
     audio.addEventListener('play', () => {
       isPlaying.value = true
     })
