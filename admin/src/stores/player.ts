@@ -149,6 +149,7 @@ export const usePlayerStore = defineStore('player', () => {
   const volume = ref(0.85)
   const mode = ref<PlayMode>(readInitialMode())
   const loading = ref(false)
+  let autoSwitching = false  // 防止 timeupdate 和 ended 重复触发切歌
 
   const currentTrack = computed(() =>
     currentIndex.value >= 0 ? queue.value[currentIndex.value] : null
@@ -164,6 +165,17 @@ export const usePlayerStore = defineStore('player', () => {
     playIndex(Math.min(startIndex, tracks.length - 1))
   }
 
+  // 无缝切歌：跳过音频重置，直接切换源并播放（用于锁屏自动切歌）
+  function doPlaySeamless(url: string) {
+    if (!audio) return
+    loading.value = false
+    audio.src = url
+    audio.currentTime = 0
+    audio.volume = volume.value
+    // 不等待 canplay，立即播放以保持 audio session 活跃
+    audio.play().catch(() => {})
+  }
+  
   function doPlay(url: string) {
     if (!audio) return
     // 取消上一次未完成的切歌回调，防止快速连点时状态混乱
@@ -236,7 +248,7 @@ export const usePlayerStore = defineStore('player', () => {
     }, 3000)
   }
 
-  async function playIndex(index: number) {
+  async function playIndex(index: number, opts?: { seamless?: boolean }) {
     if (!audio) return
     if (index < 0 || index >= queue.value.length) return
     currentIndex.value = index
@@ -244,7 +256,11 @@ export const usePlayerStore = defineStore('player', () => {
     if (!track) return
 
     if (track.mediaUrl) {
-      doPlay(track.mediaUrl)
+      if (opts?.seamless) {
+        doPlaySeamless(track.mediaUrl)
+      } else {
+        doPlay(track.mediaUrl)
+      }
       // 更新 Media Session 元数据（锁屏/控制中心显示）
       updateMediaSession(track)
       // 后台预取下一首 + 预加载当前歌词
@@ -269,7 +285,11 @@ export const usePlayerStore = defineStore('player', () => {
     }
     // 回写到 queue 中，后续切回这首歌不再请求
     queue.value = queue.value.map((t, i) => i === index ? { ...t, mediaUrl: result.url } : t)
-    doPlay(result.url)
+    if (opts?.seamless) {
+      doPlaySeamless(result.url)
+    } else {
+      doPlay(result.url)
+    }
     // 更新 Media Session 元数据（锁屏/控制中心显示）
     updateMediaSession(track)
     // 后台预取下一首 + 预加载当前歌词
@@ -309,24 +329,23 @@ export const usePlayerStore = defineStore('player', () => {
     return next
   }
 
-  function next(userTriggered = true) {
+  function next(userTriggered = true, seamless = false) {
     if (!queue.value.length) return
     // 单曲循环仅在自然结束时生效，用户手动切歌应正常前进。
     if (!userTriggered && mode.value === 'one') {
-      playIndex(currentIndex.value)
+      playIndex(currentIndex.value, seamless ? { seamless: true } : undefined)
       return
     }
     if (mode.value === 'shuffle') {
-      playIndex(pickShuffleIndex())
+      playIndex(pickShuffleIndex(), seamless ? { seamless: true } : undefined)
       return
     }
     const last = queue.value.length - 1
     if (currentIndex.value >= last) {
-      // list 模式与手动下一曲：到末尾回到开头。
-      playIndex(0)
+      playIndex(0, seamless ? { seamless: true } : undefined)
       return
     }
-    playIndex(currentIndex.value + 1)
+    playIndex(currentIndex.value + 1, seamless ? { seamless: true } : undefined)
   }
 
   function prev() {
@@ -393,8 +412,32 @@ export const usePlayerStore = defineStore('player', () => {
     audio.addEventListener('waiting', () => {
       loading.value = true
     })
+    let preSwitched = false
+    
+    // 曲目即将结束时提前切歌，保持 audio session 活跃
+    // iOS 锁屏下 ended 后再 play() 会被拦截，需要在曲末就切换
+    audio.addEventListener('timeupdate', () => {
+      if (!audio || !audio.duration) return
+      const remaining = audio.duration - audio.currentTime
+      // 剩余 0.8 秒时触发下曲预切换
+      if (remaining < 0.8 && remaining > 0 && !preSwitched && !autoSwitching) {
+        preSwitched = true
+        autoSwitching = true
+        next(false, true)  // seamless = true，跳过音频重置
+      }
+    })
+    
+    // 开始播放新曲时重置标志
+    audio.addEventListener('play', () => {
+      preSwitched = false
+    })
+    
+    // ended 作为兜底（预切换未触发时）
     audio.addEventListener('ended', () => {
-      next(false)
+      if (!autoSwitching) {
+        next(false)
+      }
+      autoSwitching = false
     })
     audio.addEventListener('error', () => {
       loading.value = false
