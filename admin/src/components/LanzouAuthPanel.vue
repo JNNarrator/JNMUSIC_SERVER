@@ -58,17 +58,6 @@ async function submitCookie() {
   } catch (e) { showToast({ message: '网络异常', type: 'error' }) } finally { submitting.value = false }
 }
 
-const cacheRefreshing = ref(false)
-async function refreshCache() {
-  cacheRefreshing.value = true
-  try {
-    const res = await fetch('/music/api/v1/admin/lanzou/refresh-cache', { method: 'POST' })
-    const p = await res.json()
-    if (p.success) showToast({ message: '缓存刷新已触发，后台执行中', type: 'success' })
-    else showToast({ message: p.error?.message || '触发失败', type: 'error' })
-  } catch (e) { showToast({ message: '网络异常', type: 'error' }) } finally { cacheRefreshing.value = false }
-}
-
 async function submitLogin() {
   if (!username.value.trim() || !password.value) { showToast({ message: '请填写账号与密码', type: 'warning' }); return }
   submitting.value = true
@@ -84,13 +73,14 @@ async function submitLogin() {
   } catch (e) { showToast({ message: '网络异常', type: 'error' }) } finally { submitting.value = false }
 }
 
+
 const cacheRefreshing = ref(false)
 async function refreshCache() {
   cacheRefreshing.value = true
   try {
     const res = await fetch('/music/api/v1/admin/lanzou/refresh-cache', { method: 'POST' })
     const p = await res.json()
-    if (p.success) showToast({ message: '缓存刷新已触发，后台执行中', type: 'success' })
+    if (p.success) showToast({ message: '缓存刷新已触发', type: 'success' })
     else showToast({ message: p.error?.message || '触发失败', type: 'error' })
   } catch (e) { showToast({ message: '网络异常', type: 'error' }) } finally { cacheRefreshing.value = false }
 }
@@ -136,14 +126,14 @@ fetchStatus()
             <div class="status-line">
               <span class="beacon" :class="`state-${light}`" />
               <span class="label">{{ lightLabel }}</span>
-              <button class="cache-refresh-btn" :disabled="cacheRefreshing" @click="refreshCache" title="刷新歌曲直链缓存">
-                <el-icon :size="14" :class="{ spinning: cacheRefreshing }"><Refresh /></el-icon>
-                <span v-if="!cacheRefreshing">刷新缓存</span>
-                <span v-else>刷新中</span>
-              </button>
               <div class="tooltip-wrapper"
                    @mouseenter="showRefreshTooltip = true"
                    @mouseleave="showRefreshTooltip = false">
+                <button class="cache-refresh-btn" :disabled="cacheRefreshing" @click="refreshCache" title="刷新歌曲直链缓存">
+                  <el-icon :size="13" :class="{ spinning: cacheRefreshing }"><Refresh /></el-icon>
+                  <span v-if="!cacheRefreshing">缓存</span>
+                  <span v-else>刷新中</span>
+                </button>
                 <button class="refresh" :disabled="loading" @click="fetchStatus">
                   <el-icon :size="15" :class="{ spinning: loading }"><Refresh /></el-icon>
                 </button>
@@ -440,24 +430,17 @@ fetchStatus()
   justify-content: center;
   transition: color 0.15s;
 }
-.refresh:hover { color: var(--jn-ink-strong); }
 .cache-refresh-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid var(--jn-hair);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--jn-ink-dim);
-  font-size: 11px;
-  font-family: 'IBM Plex Mono', monospace;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 4px 8px; border: 1px solid var(--jn-hair);
+  border-radius: 6px; background: transparent;
+  color: var(--jn-ink-dim); font-size: 10.5px;
+  font-family: 'IBM Plex Mono', monospace; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s; white-space: nowrap;
 }
 .cache-refresh-btn:hover { color: var(--jn-accent); border-color: var(--jn-accent); }
 .cache-refresh-btn:disabled { opacity: 0.5; cursor: wait; }
+.refresh:hover { color: var(--jn-ink-strong); }
 .spinning { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
