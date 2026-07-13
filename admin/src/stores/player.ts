@@ -369,10 +369,26 @@ export const usePlayerStore = defineStore('player', () => {
   if (audio) {
     // Media Session API: 让 iOS 在锁屏/后台识别为媒体应用，保持音频会话活跃
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play', () => toggle())
-      navigator.mediaSession.setActionHandler('pause', () => toggle())
-      navigator.mediaSession.setActionHandler('previoustrack', () => prev())
-      navigator.mediaSession.setActionHandler('nexttrack', () => next(true))
+      // play 必须永远尝试播放（不 toggle），解决锁屏下 audio 僵尸状态
+      // 用户按锁屏/方向盘播放键时强制重连音频会话
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (currentTrack.value) {
+          audio.play().catch(() => {})
+        }
+      })
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (!audio.paused) audio.pause()
+      })
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        prev()
+        updateMediaSession(currentTrack.value!)
+        audio.play().catch(() => {})
+      })
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        next(true)
+        updateMediaSession(currentTrack.value!)
+        audio.play().catch(() => {})
+      })
     }
 
     audio.addEventListener('play', () => {
@@ -383,6 +399,16 @@ export const usePlayerStore = defineStore('player', () => {
     })
     audio.addEventListener('timeupdate', () => {
       currentTime.value = audio.currentTime
+      // 更新 Media Session 播放位置，保持音频会话活跃
+      if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audio.duration || 0,
+            playbackRate: audio.playbackRate || 1,
+            position: audio.currentTime || 0,
+          })
+        } catch {}
+      }
     })
     audio.addEventListener('loadedmetadata', () => {
       duration.value = audio.duration || 0
