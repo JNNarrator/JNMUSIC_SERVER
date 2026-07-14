@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800" font-family="system-ui, -apple-system, sans-serif">
+  <!-- Background -->
+  <rect width="1280" height="800" fill="#100c11"/>
+  
+  <!-- Glow -->
+  <circle cx="1000" cy="-100" r="500" fill="rgba(242,177,52,0.06)"/>
+  
+  <!-- Top bar -->
+  <rect x="0" y="0" width="1280" height="64" fill="#100c11"/>
+  
+  <!-- Brand -->
+  <circle cx="48" cy="32" r="20" fill="#f2b134"/>
+  <text x="80" y="30" font-size="18" fill="#f6ecdc" font-weight="700">JNMusic</text>
+  <text x="80" y="45" font-size="10" fill="rgba(246,236,220,0.4)" font-family="monospace">深夜电台 · 一场没有主播的私人节目</text>
+  
+  <!-- Marquee -->
+  <text x="400" y="36" font-size="10" fill="rgba(246,236,220,0.4)" font-family="monospace">NOW ON AIR · SIDE B · 33 ⅓ RPM · KEEP THE NEEDLE STEADY</text>
+  
+  <!-- Header actions -->
+  <!-- Lanzou pill -->
+  <rect x="1020" y="18" width="100" height="28" rx="14" fill="transparent" stroke="rgba(242,177,52,0.4)" stroke-width="1"/>
+  <circle cx="1036" cy="32" r="4" fill="#f2b134"/>
+  <text x="1046" y="36" font-size="11" fill="#f2b134" font-family="monospace">蓝奏云</text>
+  
+  <!-- Theme toggle -->
+  <circle cx="1150" y="32" r="18" fill="transparent" stroke="rgba(246,236,220,0.08)" stroke-width="1"/>
+  
+  <!-- Main content area -->
+  <rect x="40" y="96" width="1200" height="600"/>
+  
+  <!-- Header -->
+  <text x="40" y="84" font-size="10" fill="rgba(246,236,220,0.4)" font-family="monospace">// Tonight's Rotation</text>
+  <text x="40" y="130" font-size="48" fill="#f6ecdc" font-family="system-ui, serif" font-style="italic">唱针落下之处</text>
+  <text x="40" y="160" font-size="14" fill="rgba(246,236,220,0.6)">精选曲目，点开任意一行，整张歌单便成为你今晚的电台节目。</text>
+  
+  <!-- Search bar -->
+  <rect x="40" y="180" width="300" height="40" rx="20" fill="rgba(255,255,255,0.04)" stroke="rgba(246,236,220,0.08)" stroke-width="1"/>
+  <circle cx="64" cy="200" r="8" fill="rgba(246,236,220,0.4)"/>
+  <text x="80" y="204" font-size="12" fill="rgba(246,236,220,0.4)">搜索曲名或艺人</text>
+  
+  <!-- Refresh cache -->
+  <rect x="360" y="180" width="100" height="40" rx="20" fill="transparent" stroke="rgba(246,236,220,0.08)" stroke-width="1"/>
+  <text x="386" y="204" font-size="12" fill="rgba(246,236,220,0.6)" font-family="monospace">刷新缓存</text>
+  
+  <!-- Play all -->
+  <rect x="480" y="180" width="130" height="40" rx="20" fill="#f2b134"/>
+  <text x="520" y="204" font-size="13" fill="#1a0f05" font-weight="600">播放全部</text>
+  
+  <!-- Track list header -->
+  <line x1="0" y1="240" x2="1280" y2="240" stroke="rgba(246,236,220,0.08)" stroke-width="1"/>
+  
+  <!-- Track rows - more compact for desktop -->
+  <!-- Row 1 -->
+  <g transform="translate(0, 250)">
+    <rect x="0" y="0" width="1280" height="48" fill="transparent"/>
+    <circle cx="60" cy="24" r="18" fill="transparent"/>
+    <text x="60" y="29" font-size="12" fill="rgba(246,236,220,0.6)" text-anchor="middle" font-family="monospace">1</text>
+    <text x="100" y="24" font-size="14" fill="#f6ecdc">晴天</text>
+    <text x="100" y="38" font-size="11" fill="rgba(246,236,220,0.6)">周杰伦</text>
+  </g>
+  <line x1="40" y1="298" x2="1240" y2="298" stroke="rgba(246,236,220,0.06)" stroke-width="1"/>
+  
+  <!-- Row 2 -->
+  <g transform="translate(0, 300)">
+    <rect x="0" y="0" width="1280" height="48" fill="transparent"/>
+    <circle cx="60" cy="24" r="18" fill="transparent"/>
+    <text x="60" y="29" font-size="12" fill="rgba(246,236,220,0.6)" text-anchor="middle" font-family="monospace">2</text>
+    <text x="100" y="24" font-size="14" fill="#f6ecdc">Duvet</text>
+    <text x="100" y="38" font-size="11" fill="rgba(246,236,220,0.6)">Bôa</text>
+  </g>
+  <line x1="40" y1="348" x2="1240" y2="348" stroke="rgba(246,236,220,0.06)" stroke-width="1"/>
+  
+  <!-- Row 3 -->
+  <g transform="translate(0, 350)">
+    <rect x="0" y="0" width="1280" height="48" fill="transparent"/>
+    <circle cx="60" cy="24" r="18" fill="transparent"/>
+    <text x="60" y="29" font-size="12" fill="rgba(246,236,220,0.6)" text-anchor="middle" font-family="monospace">3</text>
+    <text x="100" y="24" font-size="14" fill="#f6ecdc">起风了</text>
+    <text x="100" y="38" font-size="11" fill="rgba(246,236,220,0.6)">买辣椒也用券</text>
+  </g>
+  <line x1="40" y1="398" x2="1240" y2="398" stroke="rgba(246,236,220,0.06)" stroke-width="1"/>
+  
+  <!-- Row 4 -->
+  <g transform="translate(0, 400)">
+    <rect x="0" y="0" width="1280" height="48" fill="transparent"/>
+    <circle cx="60" cy="24" r="18" fill="transparent"/>
+    <text x="60" y="29" font-size="12" fill="rgba(246,236,220,0.6)" text-anchor="middle" font-family="monospace">4</text>
+    <text x="100" y="24" font-size="14" fill="#f6ecdc">夜曲</text>
+    <text x="100" y="38" font-size="11" fill="rgba(246,236,220,0.6)">周杰伦</text>
+  </g>
+  <line x1="40" y1="448" x2="1240" y2="448" stroke="rgba(246,236,220,0.06)" stroke-width="1"/>
+  
+  <!-- Row 5 - active -->
+  <g transform="translate(0, 450)">
+    <rect x="0" y="0" width="1280" height="48" fill="rgba(242,177,52,0.06)"/>
+    <circle cx="60" cy="24" r="18" fill="transparent"/>
+    <text x="60" y="29" font-size="12" fill="#f2b134" text-anchor="middle" font-family="monospace">5</text>
+    <text x="100" y="24" font-size="14" fill="#f2b134">我记得</text>
+    <text x="100" y="38" font-size="11" fill="rgba(246,236,220,0.6)">赵雷</text>
+  </g>
+  <line x1="40" y1="498" x2="1240" y2="498" stroke="rgba(246,236,220,0.06)" stroke-width="1"/>
+  
+  <!-- Row 6 -->
+  <g transform="translate(0, 500)">
+    <rect x="0" y="0" width="1280" height="48" fill="transparent"/>
+    <circle cx="60" cy="24" r="18" fill="transparent"/>
+    <text x="60" y="29" font-size="12" fill="rgba(246,236,220,0.6)" text-anchor="middle" font-family="monospace">6</text>
+    <text x="100" y="24" font-size="14" fill="#f6ecdc">富士山下</text>
+    <text x="100" y="38" font-size="11" fill="rgba(246,236,220,0.6)">陈奕迅</text>
+  </g>
+  <line x1="40" y1="548" x2="1240" y2="548" stroke="rgba(246,236,220,0.06)" stroke-width="1"/>
+  
+  <!-- Row 7 -->
+  <g transform="translate(0, 550)">
+    <rect x="0" y="0" width="1280" height="48" fill="transparent"/>
+    <circle cx="60" cy="24" r="18" fill="transparent"/>
+    <text x="60" y="29" font-size="12" fill="rgba(246,236,220,0.6)" text-anchor="middle" font-family="monospace">7</text>
+    <text x="100" y="24" font-size="14" fill="#f6ecdc">Last Dance</text>
+    <text x="100" y="38" font-size="11" fill="rgba(246,236,220,0.6)">伍佰</text>
+  </g>
+  <line x1="40" y1="598" x2="1240" y2="598" stroke="rgba(246,236,220,0.06)" stroke-width="1"/>
+  
+  <!-- Row 8 -->
+  <g transform="translate(0, 600)">
+    <rect x="0" y="0" width="1280" height="48" fill="transparent"/>
+    <circle cx="60" cy="24" r="18" fill="transparent"/>
+    <text x="60" y="29" font-size="12" fill="rgba(246,236,220,0.6)" text-anchor="middle" font-family="monospace">8</text>
+    <text x="100" y="24" font-size="14" fill="#f6ecdc">Hotel California</text>
+    <text x="100" y="38" font-size="11" fill="rgba(246,236,220,0.6)">Eagles</text>
+  </g>
+  <line x1="40" y1="648" x2="1240" y2="648" stroke="rgba(246,236,220,0.06)" stroke-width="1"/>
+  
+  <!-- "No more" indicator -->
+  <text x="640" y="690" font-size="12" fill="rgba(246,236,220,0.4)" text-anchor="middle" font-family="monospace">没有更多了</text>
+  
+  <!-- Player bar -->
+  <rect x="0" y="696" width="1280" height="104" fill="rgba(16,12,17,0.82)" stroke="rgba(246,236,220,0.08)" stroke-width="1"/>
+  
+  <!-- Disc -->
+  <g transform="translate(40, 712)">
+    <circle cx="28" cy="28" r="28" fill="#2a1e1a"/>
+    <circle cx="28" cy="28" r="23" fill="none" stroke="rgba(246,236,220,0.06)" stroke-width="0.8"/>
+    <circle cx="28" cy="28" r="19" fill="none" stroke="rgba(246,236,220,0.06)" stroke-width="0.8"/>
+    <circle cx="28" cy="28" r="15" fill="none" stroke="rgba(246,236,220,0.06)" stroke-width="0.8"/>
+    <circle cx="28" cy="28" r="8" fill="#f2b134"/>
+    <circle cx="28" cy="28" r="3" fill="#100c11"/>
+  </g>
+  
+  <!-- Track info -->
+  <text x="86" y="730" font-size="15" fill="#f6ecdc" font-weight="500">我记得</text>
+  <text x="86" y="748" font-size="12" fill="rgba(246,236,220,0.6)" font-family="monospace">赵雷</text>
+  
+  <!-- Controls -->
+  <g transform="translate(480, 722)">
+    <!-- Prev -->
+    <circle cx="0" cy="18" r="18" fill="transparent"/>
+    <polyline points="6,10 0,18 6,26" fill="none" stroke="rgba(246,236,220,0.6)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="-4" y1="10" x2="-4" y2="26" stroke="rgba(246,236,220,0.6)" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- Mode -->
+    <circle cx="42" cy="18" r="18" fill="transparent"/>
+    
+    <!-- Play -->
+    <circle cx="90" cy="18" r="24" fill="#f2b134"/>
+    <polygon points="84,6 84,30 100,18" fill="#1a0f05"/>
+    
+    <!-- Next -->
+    <circle cx="138" cy="18" r="18" fill="transparent"/>
+    <polyline points="132,10 138,18 132,26" fill="none" stroke="rgba(246,236,220,0.6)" stroke-width="2" stroke-linecap="round"/>
+    <line x1="142" y1="10" x2="142" y2="26" stroke="rgba(246,236,220,0.6)" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Progress bar -->
+  <g transform="translate(660, 756)">
+    <text x="0" y="8" font-size="10" fill="rgba(246,236,220,0.6)" font-family="monospace">1:24</text>
+    <rect x="60" y="-2" width="400" height="4" rx="2" fill="rgba(246,236,220,0.12)"/>
+    <rect x="60" y="-2" width="200" height="4" rx="2" fill="#f2b134"/>
+    <circle cx="260" cy="0" r="7" fill="#1a1218" stroke="#f2b134" stroke-width="2"/>
+    <text x="480" y="8" font-size="10" fill="rgba(246,236,220,0.6)" font-family="monospace" text-anchor="end">4:36</text>
+  </g>
+  
+  <!-- Volume -->
+  <g transform="translate(1100, 748)">
+    <rect x="0" y="0" width="120" height="4" rx="2" fill="rgba(246,236,220,0.12)"/>
+    <rect x="0" y="0" width="85" height="4" rx="2" fill="#f2b134"/>
+  </g>
+</svg>
