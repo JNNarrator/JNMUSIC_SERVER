@@ -29,7 +29,8 @@ rsync -avz --progress "$JAR_FILE" "$DEPLOY_HOST:$BACKUP_JAR"
 rsync -avz --progress "$JAR_FILE" "$DEPLOY_HOST:$DEPLOY_PATH/"
 
 echo "==> 5/6  重启服务..."
-ssh "$DEPLOY_HOST" "cd $DEPLOY_PATH && sh $RESTART_SCRIPT restart"
+# stop 可能因进程已不存在而失败，|| true 确保 start 总能执行
+ssh "$DEPLOY_HOST" "cd $DEPLOY_PATH && sh $RESTART_SCRIPT stop 2>/dev/null || true && sleep 2 && sh $RESTART_SCRIPT start"
 
 echo "==> 6/6  验证..."
 sleep 3
@@ -37,4 +38,4 @@ ssh "$DEPLOY_HOST" "tail -5 $DEPLOY_PATH/logs/music-app.log"
 
 echo ""
 echo "=== 部署完成 ==="
-echo "如需回滚: ssh $DEPLOY_HOST 'cp $BACKUP_JAR $DEPLOY_PATH/music-0.0.1-SNAPSHOT.jar && cd $DEPLOY_PATH && sh $RESTART_SCRIPT restart'"
+echo "如需回滚: ssh $DEPLOY_HOST 'cp $BACKUP_JAR $DEPLOY_PATH/music-0.0.1-SNAPSHOT.jar && cd $DEPLOY_PATH && sh $RESTART_SCRIPT start'"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, defineAsyncComponent } from 'vue'
+import { computed, ref, onMounted, defineAsyncComponent } from 'vue'
 import { ElIcon } from 'element-plus'
-import { Sunny, Moon } from '@element-plus/icons-vue'
+import { Sunny, Moon, Download } from '@element-plus/icons-vue'
 import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
 const PlayerPage = defineAsyncComponent(() => import('./components/PlayerPage.vue'))
@@ -28,6 +28,15 @@ const BASE_TITLE = 'JNMusic · 夜猫电台'
 
 const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' : '切到夜间模式'))
 const showThemeTooltip = ref(false)
+const pwaInstallable = ref(false)
+
+onMounted(() => {
+  if (document.documentElement.classList.contains('pwa-installable')) {
+    pwaInstallable.value = true
+  }
+  window.addEventListener('beforeinstallprompt', () => { pwaInstallable.value = true })
+  window.addEventListener('appinstalled', () => { pwaInstallable.value = false })
+})
 
 const hasFatalError = ref(false)
 const reloadPage = () => { location.reload() }
@@ -65,6 +74,10 @@ if (typeof window !== 'undefined') {
       </div>
       <div class="header-actions">
         <LanzouAuthPanel />
+        <button v-if="pwaInstallable" class="install-btn" @click="(window as any).__installPrompt?.()" title="安装到桌面">
+          <el-icon :size="15"><Download /></el-icon>
+          <span>安装</span>
+        </button>
         <div class="theme-tooltip-wrapper"
              @mouseenter="showThemeTooltip = true"
              @mouseleave="showThemeTooltip = false">
@@ -195,6 +208,33 @@ if (typeof window !== 'undefined') {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+}
+
+.install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 36px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--jn-accent);
+  background: var(--jn-accent-soft);
+  color: var(--jn-accent);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+.install-btn:hover {
+  background: var(--jn-accent);
+  color: var(--jn-accent-ink);
+}
+.install-btn:active { transform: translateY(1px); }
+
+@media (max-width: 720px) {
+  .install-btn span { display: none; }
+  .install-btn { padding: 0 10px; }
 }
 
 .theme-tooltip-wrapper {

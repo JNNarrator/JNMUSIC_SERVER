@@ -34,6 +34,24 @@ if (audio) audio.preload = 'metadata'
 // 用于取消上一次未完成的切歌就绪回调
 let pendingReady: (() => void) | null = null
 
+// Android Wake Lock: 播放时阻止屏幕休眠（车机/导航场景）
+let wakeLockSentinel: WakeLockSentinel | null = null
+
+async function requestWakeLock() {
+  try {
+    if (wakeLockSentinel) return
+    wakeLockSentinel = await navigator.wakeLock.request('screen')
+    wakeLockSentinel.onrelease = () => { wakeLockSentinel = null }
+  } catch { /* Wake Lock 不可用时不阻塞 */ }
+}
+
+async function releaseWakeLock() {
+  if (wakeLockSentinel) {
+    try { await wakeLockSentinel.release() } catch {}
+    wakeLockSentinel = null
+  }
+}
+
 // 前端直链缓存：trackId -> { url, format, expiresAt }
 const urlCache = new Map<string, { url: string; format: string; expiresAt: number }>()
 
@@ -389,13 +407,22 @@ export const usePlayerStore = defineStore('player', () => {
         updateMediaSession(currentTrack.value!)
         audio.play().catch(() => {})
       })
+      // 方向盘长按快进/快退（Android 车机硬件按键）
+      navigator.mediaSession.setActionHandler('seekforward', () => {
+        if (audio) audio.currentTime = Math.min(audio.currentTime + 10, audio.duration || 0)
+      })
+      navigator.mediaSession.setActionHandler('seekbackward', () => {
+        if (audio) audio.currentTime = Math.max(audio.currentTime - 10, 0)
+      })
     }
 
     audio.addEventListener('play', () => {
       isPlaying.value = true
+      requestWakeLock()
     })
     audio.addEventListener('pause', () => {
       isPlaying.value = false
+      releaseWakeLock()
     })
     audio.addEventListener('timeupdate', () => {
       currentTime.value = audio.currentTime
