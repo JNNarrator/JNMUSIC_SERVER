@@ -180,9 +180,14 @@ public class TrackServiceImpl implements TrackService {
         if (trackIds == null || trackIds.isEmpty()) return Map.of();
         Map<String, MediaUrlDTO> result = new HashMap<>();
         List<String> missing = new ArrayList<>();
-        // L2: 先查 MySQL
+        // L2: 先查 MySQL — 一次性批量查询
+        List<Track> cached = trackMapper.selectBatchIds(trackIds);
+        Map<String, Track> cacheMap = new HashMap<>();
+        for (Track ct : cached) {
+            cacheMap.put(ct.getTrackId(), ct);
+        }
         for (String id : trackIds) {
-            var ct = trackMapper.selectById(id);
+            Track ct = cacheMap.get(id);
             if (ct != null && ct.getMediaUrl() != null && !ct.getMediaUrl().isBlank()
                     && ct.getUrlExpiresAt() != null && ct.getUrlExpiresAt().isAfter(OffsetDateTime.now())) {
                 String fmt = ct.getFormat() != null ? ct.getFormat() : "";
@@ -201,8 +206,8 @@ public class TrackServiceImpl implements TrackService {
                     var dto = MediaUrlDTO.builder().trackId(id).mediaUrl(urlMap.get(id))
                             .format(sf.parseFolderName().format()).expiresAt(OffsetDateTime.now().plusHours(4)).build();
                     result.put(id, dto);
-                    // 回写 MySQL
-                    var ct = trackMapper.selectById(id);
+                    // 回写 MySQL — 从 cacheMap 复用避免二次查询
+                    Track ct = cacheMap.get(id);
                     if (ct != null) {
                         ct.setMediaUrl(dto.getMediaUrl());
                         ct.setUrlExpiresAt(dto.getExpiresAt());
@@ -274,7 +279,6 @@ public class TrackServiceImpl implements TrackService {
                 if (sf != null) out.add(sf);
                 else loadSongFoldersRecursively(f.id(), out);
             }
-            if (page == 1) break;
         }
     }
 

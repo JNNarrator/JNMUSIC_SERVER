@@ -59,7 +59,7 @@ public class TrackCacheService {
         }
     }
 
-    @Scheduled(cron = "0 0 */8 * * ?")
+    @Scheduled(cron = "0 0 */4 * * ?")
     public void scheduledRefresh() { refreshAll(); }
 
     /** 全量刷新：从 lanzou 获取所有 trackId → 逐个拉取直链 → 写入/更新 MySQL + L1 */

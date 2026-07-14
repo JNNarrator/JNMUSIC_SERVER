@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, defineAsyncComponent } from 'vue'
 import { ElIcon } from 'element-plus'
 import { Sunny, Moon } from '@element-plus/icons-vue'
 import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
-import PlayerPage from './components/PlayerPage.vue'
+const PlayerPage = defineAsyncComponent(() => import('./components/PlayerPage.vue'))
 import BrandLogo from './components/BrandLogo.vue'
 import LanzouAuthPanel from './components/LanzouAuthPanel.vue'
 import { useThemeStore } from './stores/theme'
@@ -28,6 +28,22 @@ const BASE_TITLE = 'JNMusic · 夜猫电台'
 
 const themeLabel = computed(() => (theme.mode === 'dark' ? '切到白天模式' : '切到夜间模式'))
 const showThemeTooltip = ref(false)
+
+const hasFatalError = ref(false)
+const reloadPage = () => { location.reload() }
+
+// 全局未捕获异常兜底
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (e) => {
+    if (!e.target || (e.target as HTMLElement).tagName !== 'IMG') {
+      hasFatalError.value = true
+    }
+  })
+  window.addEventListener('unhandledrejection', () => {
+    hasFatalError.value = true
+  })
+}
+
 </script>
 
 <template>
@@ -67,7 +83,16 @@ const showThemeTooltip = ref(false)
       </div>
     </header>
 
-    <main class="stage">
+  
+  <div v-if="hasFatalError" class="fatal-error">
+    <div class="fatal-error-body">
+      <h2>出错了</h2>
+      <p>应用遇到了意外的错误，试试刷新页面。</p>
+      <button class="fatal-retry" @click="reloadPage">刷新页面</button>
+    </div>
+  </div>
+
+  <main class="stage">
       <TrackList />
     </main>
 
@@ -193,6 +218,24 @@ const showThemeTooltip = ref(false)
   color: var(--jn-accent);
   border-color: var(--jn-accent);
   transform: rotate(-12deg);
+}
+
+
+.fatal-error {
+  position: fixed; inset: 0; z-index: 999;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--jn-bg);
+}
+.fatal-error-body { text-align: center; }
+.fatal-error-body h2 {
+  font-family: 'Fraunces', serif; font-weight: 500; font-style: italic;
+  font-size: 28px; color: var(--jn-ink-strong); margin: 0 0 12px;
+}
+.fatal-error-body p { color: var(--jn-ink-dim); font-size: 14px; margin: 0 0 20px; }
+.fatal-retry {
+  padding: 10px 22px; border: none; border-radius: 999px;
+  background: var(--jn-accent); color: var(--jn-accent-ink);
+  font-size: 13px; font-weight: 600; cursor: pointer;
 }
 
 .theme-tooltip {

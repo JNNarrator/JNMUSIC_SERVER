@@ -20,6 +20,7 @@ const error = ref<string | null>(null)
 
 const cacheRefreshing = ref(false)
 const cacheProgress = ref<{ total: number; completed: number; inProgress: boolean } | null>(null)
+const trackMediaStatus = ref<Record<string, 'loading' | 'ready' | 'error'>>({})
 let cachePollTimer: ReturnType<typeof setInterval> | null = null
 
 async function refreshCache() {
