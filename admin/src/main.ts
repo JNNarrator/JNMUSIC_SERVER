@@ -13,13 +13,6 @@ if (isCar) {
   document.documentElement.classList.add('car-mode')
 }
 
-// === Service Worker 注册（Android 离线缓存 + PWA 增强） ===
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {})
-  })
-}
-
 // === PWA 安装引导（Android Chrome beforeinstallprompt） ===
 let installPromptEvent: Event | null = null
 window.addEventListener('beforeinstallprompt', (e) => {

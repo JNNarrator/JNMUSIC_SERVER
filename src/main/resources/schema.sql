@@ -57,3 +57,8 @@ CREATE TABLE IF NOT EXISTS play_queue (
     UNIQUE KEY uk_queue_device_position (device_id, position),
     INDEX idx_queue_device_position (device_id, position)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='播放队列表';
+CREATE TABLE IF NOT EXISTS lyrics_cache (
+    track_id   VARCHAR(32)   PRIMARY KEY COMMENT '歌曲ID',
+    lyrics     MEDIUMTEXT    NOT NULL COMMENT '歌词文本',
+    updated_at DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='歌词缓存表';

@@ -20,7 +20,6 @@ const error = ref<string | null>(null)
 
 const cacheRefreshing = ref(false)
 const cacheProgress = ref<{ total: number; completed: number; inProgress: boolean } | null>(null)
-const trackMediaStatus = ref<Record<string, 'loading' | 'ready' | 'error'>>({})
 let cachePollTimer: ReturnType<typeof setInterval> | null = null
 
 async function refreshCache() {
@@ -53,21 +52,6 @@ async function refreshCache() {
   } catch (e) { showToast({ message: '网络异常', type: 'error' }); cacheRefreshing.value = false }
 }
 
-
-async function preloadAllUrls() {
-  if (!tracks.value.length) return
-  const ids = tracks.value.map(t => t.trackId)
-  const st: Record<string, 'loading' | 'ready' | 'error'> = {}
-  ids.forEach(id => { st[id] = 'loading' })
-  trackMediaStatus.value = { ...st }
-  try {
-    await fetchMediaUrls(ids)
-    ids.forEach(id => { st[id] = 'ready' })
-  } catch {
-    ids.forEach(id => { st[id] = 'error' })
-  }
-  trackMediaStatus.value = { ...st }
-}
 
 // --- pull-to-refresh ---
 const pullRef = ref<HTMLElement | null>(null)

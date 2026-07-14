@@ -6,6 +6,8 @@ import com.jn.music.common.exception.BusinessException;
 import com.jn.music.storage.MusicStorage;
 import com.jn.music.track.mapper.TrackMapper;
 import com.jn.music.track.domain.Track;
+import com.jn.music.track.domain.LyricsCache;
+import com.jn.music.track.mapper.LyricsCacheMapper;
 import com.jn.music.storage.StorageFile;
 import com.jn.music.storage.StorageFolder;
 import com.jn.music.storage.StorageListResult;
@@ -81,10 +83,12 @@ public class TrackServiceImpl implements TrackService {
 
     private final MusicStorage musicStorage;
     private final TrackMapper trackMapper;
+    private final LyricsCacheMapper lyricsCacheMapper;
 
-    public TrackServiceImpl(MusicStorage musicStorage, TrackMapper trackMapper) {
+    public TrackServiceImpl(MusicStorage musicStorage, TrackMapper trackMapper, LyricsCacheMapper lyricsCacheMapper) {
         this.musicStorage = musicStorage;
         this.trackMapper = trackMapper;
+        this.lyricsCacheMapper = lyricsCacheMapper;
     }
 
     @Override
@@ -93,9 +97,9 @@ public class TrackServiceImpl implements TrackService {
     }
 
     @Override
-    @CacheEvict(value = "songFolders", allEntries = true, condition = "#refresh")
+    @CacheEvict(value = {"songFolders", "trackSummaries"}, allEntries = true, condition = "#refresh")
     public PageResponse<TrackSummaryDTO> listTracks(Integer page, Integer pageSize, boolean refresh) {
-        return paginate(loadAllAudioSummaries(), normalize(page, 1), normalize(pageSize, 20));
+        return paginate(getCachedSummaries(), normalize(page, 1), normalize(pageSize, 20));
     }
 
     @Override
@@ -104,7 +108,7 @@ public class TrackServiceImpl implements TrackService {
         if (kw.isEmpty()) throw new BusinessException(ErrorCode.INVALID_PARAMETER, "搜索关键词不能为空");
         String lower = kw.toLowerCase(Locale.ROOT);
         List<TrackSummaryDTO> matched = new ArrayList<>();
-        for (TrackSummaryDTO t : loadAllAudioSummaries()) {
+        for (TrackSummaryDTO t : getCachedSummaries()) {
             if (containsIgnoreCase(t.getName(), lower) || containsIgnoreCase(t.getArtist(), lower)) {
                 matched.add(t);
             }
@@ -223,16 +227,29 @@ public class TrackServiceImpl implements TrackService {
     @Cacheable(value = "lyrics", key = "#trackId")
     public String getLyrics(String trackId) {
         String id = requireTrackId(trackId);
+        // L2: 先查 MySQL 歌词缓存
+        LyricsCache cached = lyricsCacheMapper.selectById(id);
+        if (cached != null && cached.getLyrics() != null && !cached.getLyrics().isBlank()) {
+            return cached.getLyrics();
+        }
         for (SongFolder sf : loadSongFolders()) {
             if (id.equals(sf.audioFile().id())) {
-                if (sf.lyricFile() == null) {
-                    throw new BusinessException(ErrorCode.TRACK_NOT_FOUND, "该歌曲暂无歌词");
-                }
+                if (sf.lyricFile() == null) break;
+                String lyrics = downloadText(musicStorage.getDownloadUrl(sf.lyricFile().id()));
+                // 回写 L2 (MySQL)
                 try {
-                    return downloadText(musicStorage.getDownloadUrl(sf.lyricFile().id()));
+                    LyricsCache existing = lyricsCacheMapper.selectById(id);
+                    if (existing != null) {
+                        existing.setLyrics(lyrics);
+                        lyricsCacheMapper.updateById(existing);
+                    } else {
+                        LyricsCache lc = LyricsCache.builder().trackId(id).lyrics(lyrics).build();
+                        lyricsCacheMapper.insert(lc);
+                    }
                 } catch (Exception e) {
-                    throw new BusinessException(ErrorCode.INTERNAL_ERROR, "获取歌词失败: " + e.getMessage());
+                    log.warn("歌词缓存写入失败 trackId={}: {}", id, e.getMessage());
                 }
+                return lyrics;
             }
         }
         throw new BusinessException(ErrorCode.TRACK_NOT_FOUND);
@@ -292,6 +309,12 @@ public class TrackServiceImpl implements TrackService {
         }
         return audioFile != null ? new SongFolder(folderId, folderName, audioFile, lyricFile) : null;
     }
+
+    @Cacheable(value = "trackSummaries", key = "'all'")
+    public List<TrackSummaryDTO> getCachedSummaries() {
+        return loadAllAudioSummaries();
+    }
+
 
     private List<TrackSummaryDTO> loadAllAudioSummaries() {
         // 先从 MySQL 加载所有缓存的直链

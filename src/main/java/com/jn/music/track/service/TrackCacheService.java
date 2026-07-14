@@ -37,7 +37,17 @@ public class TrackCacheService {
     }
 
     @PostConstruct
-    void onStartup() { initCache(); }
+    void onStartup() {
+        // 非阻塞：在后台线程预热，不拖慢 Spring Boot 的 Tomcat 启动
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+                initCache();
+            } catch (Exception e) {
+                log.warn("TrackCacheService 后台预热异常", e);
+            }
+        }, "cache-init").start();
+    }
 
     @Async
     public void initCache() {

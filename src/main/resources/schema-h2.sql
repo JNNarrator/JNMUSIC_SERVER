@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS track (
     track_number INT           DEFAULT NULL,
     has_lyric    BOOLEAN       DEFAULT FALSE,
     lyric_url    VARCHAR(512)  DEFAULT NULL,
+    media_url    VARCHAR(1024) DEFAULT NULL,
+    url_expires_at TIMESTAMP   DEFAULT NULL,
     created_at   TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
 );
@@ -62,3 +64,8 @@ CREATE TABLE IF NOT EXISTS play_queue (
 );
 
 CREATE INDEX IF NOT EXISTS idx_queue_device_position ON play_queue(device_id, position);
+CREATE TABLE IF NOT EXISTS lyrics_cache (
+    track_id   VARCHAR(32)   PRIMARY KEY,
+    lyrics     CLOB          NOT NULL,
+    updated_at TIMESTAMP     DEFAULT CURRENT_TIMESTAMP
+);
