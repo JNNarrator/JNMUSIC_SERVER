@@ -19,7 +19,7 @@ import jakarta.annotation.PostConstruct;
 public class TrackCacheService {
 
     private static final Logger log = LoggerFactory.getLogger(TrackCacheService.class);
-    private static final String CACHE_NAME = "mediaUrls";
+    private static final String CACHE_NAME = "cachedMediaUrl";
 
     private final TrackMapper trackMapper;
     private final TrackService trackService;
